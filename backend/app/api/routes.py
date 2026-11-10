@@ -1,3 +1,4 @@
+
 """CampusMind AI - API Routers.
 
 Implements FastAPI endpoints for authentication, documents, chat operations, and health telemetry.
@@ -13,7 +14,8 @@ Responsibilities:
 8. list_chat_sessions(): Lists chat sessions owned by the authenticated user.
 9. get_chat_history(): Returns stored message history for a specific conversation session.
 10. health_check(): Reports operational status of MySQL, Redis, and Qdrant dependencies.
-11. get_cache_metrics(): Computes cache hit/miss telemetry and avoided LLM inference metrics.
+11. get_cache_metrics(): Computes cache hit/miss telemetry, avoided LLM inference, and memory stats.
+12. update_cache_policy(): Switches active Redis eviction policy between allkeys-lru and allkeys-lfu.
 """
 
 import os
@@ -54,6 +56,7 @@ from app.schemas.api_schemas import (
     HealthResponse,
     DependencyStatus,
     CacheMetrics,
+    CachePolicyUpdateRequest,
 )
 
 logger = logging.getLogger(__name__)
@@ -512,12 +515,23 @@ def health_check(
     summary="Live Redis cache metrics [Admin Only]",
     tags=["System"],
 )
-# Returns live cache metrics: hits, misses, hit rate, and avoided LLM calls (Admin only).
+# Returns live cache metrics: hits, misses, hit rate, avoided LLM calls, and Redis eviction policy stats (Admin only).
 def get_cache_metrics(
     current_user: UserModel = Depends(require_admin),
+    rag: RAGService = Depends(get_rag_service),
 ):
     total_queries = _cache_hits_counter + _cache_misses_counter
     hit_rate = round((_cache_hits_counter / total_queries * 100.0), 2) if total_queries > 0 else 0.0
+
+    info = rag.cache_service.get_cache_info() if hasattr(rag, "cache_service") and hasattr(rag.cache_service, "get_cache_info") else {}
+    if not isinstance(info, dict):
+        info = {}
+
+    used_mem = info.get("used_memory_human")
+    max_mem = info.get("maxmemory_human")
+    cfg_policy = info.get("configured_policy")
+    live_pol = info.get("live_policy")
+    ttl = info.get("ttl_seconds")
 
     return CacheMetrics(
         hits=_cache_hits_counter,
@@ -525,4 +539,47 @@ def get_cache_metrics(
         total_queries=total_queries,
         hit_rate_pct=hit_rate,
         llm_calls_avoided=_cache_hits_counter,
+        ttl_seconds=int(ttl) if isinstance(ttl, (int, float)) else 1800,
+        used_memory_human=str(used_mem) if isinstance(used_mem, str) else "N/A",
+        maxmemory_human=str(max_mem) if isinstance(max_mem, str) else "N/A",
+        configured_policy=str(cfg_policy) if isinstance(cfg_policy, str) else "allkeys-lru",
+        live_policy=str(live_pol) if isinstance(live_pol, str) else "allkeys-lru",
     )
+
+
+@router.post(
+    "/metrics/cache/policy",
+    summary="Update Redis eviction policy (Admin Only)",
+    tags=["System"],
+)
+# Switches the active Redis eviction policy between allkeys-lru and allkeys-lfu (Admin only).
+def update_cache_policy(
+    req: CachePolicyUpdateRequest,
+    current_user: UserModel = Depends(require_admin),
+    rag: RAGService = Depends(get_rag_service),
+):
+    clean_policy = req.policy.strip().lower()
+    if clean_policy not in ["allkeys-lru", "allkeys-lfu"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Supported policies are 'allkeys-lru' and 'allkeys-lfu'.",
+        )
+
+    success = rag.cache_service.configure_eviction_policy(
+        policy=clean_policy,
+        maxmemory=req.maxmemory,
+    )
+
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update Redis eviction policy configuration.",
+        )
+
+    info = rag.cache_service.get_cache_info()
+    return {
+        "message": f"Successfully updated Redis eviction policy to {clean_policy}.",
+        "policy": clean_policy,
+        "maxmemory": info.get("maxmemory_human"),
+        "live_policy": info.get("live_policy"),
+    }
