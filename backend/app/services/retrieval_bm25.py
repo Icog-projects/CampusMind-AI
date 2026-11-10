@@ -1,6 +1,18 @@
 """CampusMind AI - BM25 Retrieval Service.
 
 Provides Okapi BM25 keyword search and indexing over document chunks.
+
+Responsibilities:
+1. default_tokenizer(): Tokenizes text into lowercase alphanumeric words.
+Class BM25RetrievalService:
+2. BM25RetrievalService.__init__(): Initializes the BM25 index structures and tokenizer.
+3. BM25RetrievalService.is_indexed(): Reports whether the BM25 index currently contains searchable chunks.
+4. BM25RetrievalService.total_chunks(): Returns the count of indexed chunks.
+5. BM25RetrievalService.build_index(): Builds or rebuilds the BM25 inverted index from a sequence of chunks.
+6. BM25RetrievalService.clear_index(): Clears all indexed chunks and resets the search state.
+7. BM25RetrievalService.search(): Performs BM25 keyword scoring over indexed chunks with optional document filtering.
+8. BM25RetrievalService.add_chunks(): Appends new chunks to the corpus and updates the index.
+9. BM25RetrievalService.remove_document(): Deletes all chunks associated with a document ID from the index.
 """
 
 import re

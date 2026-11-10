@@ -1,14 +1,12 @@
-"""
-CampusMind AI - Chunking Comparison Runner (SRS Section 12.2)
-Compares Fixed, Recursive, and Semantic chunking over the standard corpus and benchmark questions:
-1. Runs identical document ingestion across methods.
-2. Measures:
-   - Chunk count & average token/char size.
-   - Indexing / chunking processing time.
-   - Retrieval quality: Recall@k, MRR.
-   - Average retrieval latency per query.
-3. Disables Redis caching to measure pure retrieval capabilities.
-4. Outputs structured comparison table and saves raw JSON/CSV results.
+"""CampusMind AI - Chunking Strategy Comparison Evaluator.
+
+Compares fixed, recursive, and semantic chunking on indexing speed and retrieval accuracy.
+
+Responsibilities:
+Class ChunkingEvaluator:
+1. ChunkingEvaluator.__init__(): Initializes chunk sizes, overlaps, and top-k evaluation parameters.
+2. ChunkingEvaluator.evaluate_method(): Evaluates a specific chunking strategy across the corpus and benchmark questions.
+3. ChunkingEvaluator.run_all(): Runs evaluation across all chunking methods and outputs structured comparison data.
 """
 
 import time

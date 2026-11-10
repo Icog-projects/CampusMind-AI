@@ -1,19 +1,19 @@
-"""
-CampusMind AI - API Routers
-Implements minimal FastAPI endpoints according to SRS Version 1.2 & 1.3:
-- Authentication & JWT Token Management:
-  * POST /auth/register: Create user account (defaults to student, prevents public admin creation).
-  * POST /auth/login: Verify credentials and issue signed JWT access token.
-  * GET /auth/me: Retrieve current authenticated user profile.
-- Documents Management (Role: Admin only):
-  * POST /documents/upload: Admin-only document upload & indexing.
-  * GET /documents: List processed documents in MySQL.
-- Chat Operations (Role: Authenticated Student, Staff, Admin):
-  * POST /chat/ask: User question answering with role/scope isolation and user history association.
-  * GET /chat/history/{session_id}: View history of owned chat session.
-- System Diagnostics:
-  * GET /health: Public health check.
-  * GET /metrics/cache: Admin/Staff cache analytics.
+"""CampusMind AI - API Routers.
+
+Implements FastAPI endpoints for authentication, documents, chat operations, and health telemetry.
+
+Responsibilities:
+1. get_rag_service(): Provides the singleton RAGService orchestrator instance.
+2. register(): Handles user registration requests and hashes user passwords.
+3. login(): Authenticates user credentials and issues signed JWT access tokens.
+4. get_me(): Returns the authenticated user's profile details.
+5. upload_document(): Ingests, chunks, embeds, and indexes an uploaded document.
+6. list_documents(): Retrieves paginated document records from the database.
+7. ask_question(): Processes chat questions through the grounded RAG pipeline.
+8. list_chat_sessions(): Lists chat sessions owned by the authenticated user.
+9. get_chat_history(): Returns stored message history for a specific conversation session.
+10. health_check(): Reports operational status of MySQL, Redis, and Qdrant dependencies.
+11. get_cache_metrics(): Computes cache hit/miss telemetry and avoided LLM inference metrics.
 """
 
 import os

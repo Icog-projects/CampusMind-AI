@@ -1,16 +1,16 @@
-"""
-CampusMind AI - Document Extractor Service (FR-01, FR-02)
-Handles text extraction, format validation, and page-level provenance tracking
-for PDF, DOCX, and TXT university documents.
+"""CampusMind AI - Document Extractor Service.
 
-Key Capabilities:
-- Validates file extensions (.pdf, .docx, .txt), magic bytes, empty inputs, and max size limits.
-- PDF extraction using PyMuPDF (fitz) with exact 1-based page numbers.
-- DOCX extraction using python-docx with explicit section/page-break tracking.
-- TXT extraction with automatic encoding detection (UTF-8, Latin-1, CP1252).
-- Text cleaning (normalizes excessive whitespace, strips carriage returns, removes null bytes).
-- Returns the project's standard ExtractedDocument schema.
-- Safe error handling for corrupted/malformed files.
+Extracts text, normalizes content, and validates PDF, DOCX, and TXT files.
+
+Responsibilities:
+1. clean_text(): Normalizes whitespace, replaces null characters, and cleans text.
+Class DocumentExtractor:
+2. DocumentExtractor.__init__(): Initializes maximum allowable file size limit.
+3. DocumentExtractor._read_and_validate_bytes(): Validates non-empty content, size bounds, and file extension.
+4. DocumentExtractor.extract_document(): Main dispatcher extracting structured pages from valid documents.
+5. DocumentExtractor._extract_pdf(): Extracts 1-based page text from PDF files using PyMuPDF.
+6. DocumentExtractor._extract_docx(): Extracts structured paragraphs and tables from DOCX files.
+7. DocumentExtractor._extract_txt(): Decodes text documents supporting UTF-8 and Latin-1 fallbacks.
 """
 
 import io

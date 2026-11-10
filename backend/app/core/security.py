@@ -1,6 +1,15 @@
-"""
-CampusMind AI - Authentication & Cryptography Utilities
-Handles password hashing (bcrypt) and JSON Web Token (JWT) encoding/decoding.
+"""CampusMind AI - Authentication & Cryptography Utilities.
+
+Handles password hashing (bcrypt) and JSON Web Token (JWT) encoding and decoding.
+
+Responsibilities:
+1. get_jwt_secret(): Retrieves JWT secret key from environment or fallback default.
+2. get_jwt_algorithm(): Retrieves the configured cryptographic signing algorithm.
+3. get_token_expire_minutes(): Returns JWT access token expiration duration in minutes.
+4. hash_password(): Generates a secure salted bcrypt hash for a plaintext password.
+5. verify_password(): Verifies whether a candidate plaintext password matches a stored bcrypt hash.
+6. create_access_token(): Signs and encodes a JWT token with subject ID, role, and expiration timestamp.
+7. decode_access_token(): Decodes and verifies the cryptographic signature of a JWT string.
 """
 
 import os

@@ -1,6 +1,18 @@
 """CampusMind AI - Embedding Service.
 
 Generates dense vector embeddings using the configured sentence-transformer model.
+
+Responsibilities:
+Class EmbeddingService:
+1. EmbeddingService.__init__(): Initializes the service and loads the embedding model.
+2. EmbeddingService._ensure_model_loaded(): Loads model and tokenizer into class-level singleton cache.
+3. EmbeddingService.model(): Provides access to the underlying SentenceTransformer model.
+4. EmbeddingService.tokenizer(): Provides access to the HuggingFace tokenizer.
+5. EmbeddingService.count_tokens(): Returns exact token count of text using the model tokenizer.
+6. EmbeddingService._validate_input_length(): Checks that text does not exceed sequence length limit.
+7. EmbeddingService.embed_text(): Computes normalized 384-dimensional embedding for a single text.
+8. EmbeddingService.embed_query(): Encodes search queries into dense vector representations.
+9. EmbeddingService.embed_chunks(): Batches and generates embeddings across multiple document chunks.
 """
 
 import logging
@@ -22,11 +34,13 @@ class InputSequenceTooLongError(ValueError):
     pass
 
 
+# Generates dense vector embeddings using the configured sentence-transformer model.
 class EmbeddingService:
     _instance: Optional["EmbeddingService"] = None
     _model = None
     _tokenizer = None
 
+    # Initializes the EmbeddingService with model name, batch size, and limits.
     def __init__(
         self,
         model_name: str = MODEL_NAME,
@@ -34,23 +48,14 @@ class EmbeddingService:
         max_sequence_length: int = MAX_SEQUENCE_LENGTH,
         device: str = "cpu",
     ):
-        """
-        Initializes the EmbeddingService.
-        
-        Args:
-            model_name: Name or path of the SentenceTransformer model (defaults to BAAI/bge-small-en-v1.5).
-            batch_size: Default batch size for multi-chunk embedding.
-            max_sequence_length: Maximum allowed sequence tokens (512 for BGE-small).
-            device: Device to run embeddings on ('cpu').
-        """
         self.model_name = model_name
         self.batch_size = batch_size
         self.max_sequence_length = max_sequence_length
         self.device = device
         self._ensure_model_loaded()
 
+    # Loads the SentenceTransformer model and tokenizer once into class-level cache.
     def _ensure_model_loaded(self):
-        """Ensures the SentenceTransformer model and its underlying tokenizer are loaded once."""
         if EmbeddingService._model is None:
             logger.info("Loading embedding model %s on device: %s...", self.model_name, self.device)
             from sentence_transformers import SentenceTransformer
@@ -61,28 +66,25 @@ class EmbeddingService:
             EmbeddingService._tokenizer = model.tokenizer
             logger.info("Embedding model %s successfully loaded.", self.model_name)
 
+    # Returns the loaded SentenceTransformer model instance.
     @property
     def model(self):
         return EmbeddingService._model
 
+    # Returns the underlying HuggingFace tokenizer instance.
     @property
     def tokenizer(self):
         return EmbeddingService._tokenizer
 
+    # Calculates exact token count using the model's actual HuggingFace tokenizer.
     def count_tokens(self, text: str) -> int:
-        """
-        Calculates exact token count using the model's actual HuggingFace tokenizer.
-        """
         if not text:
             return 0
         tokens = self.tokenizer.encode(text, add_special_tokens=True)
         return len(tokens)
 
+    # Validates that input does not exceed max_sequence_length tokens.
     def _validate_input_length(self, text: str, identifier: str = "text"):
-        """
-        Validates that input does not exceed max_sequence_length tokens.
-        Raises InputSequenceTooLongError rather than silently allowing unintended truncation.
-        """
         token_count = self.count_tokens(text)
         if token_count > self.max_sequence_length:
             raise InputSequenceTooLongError(
@@ -90,16 +92,8 @@ class EmbeddingService:
                 f"{self.max_sequence_length} tokens. Re-chunk the input before embedding."
             )
 
+    # Generates a 384-dimensional normalized vector for a single piece of text.
     def embed_text(self, text: str) -> List[float]:
-        """
-        Generates a 384-dimensional normalized vector for a single piece of text.
-        
-        Args:
-            text: Non-empty input string.
-            
-        Returns:
-            List of 384 floats.
-        """
         if not isinstance(text, str):
             raise TypeError(f"Expected text to be a string, got {type(text)}")
         cleaned = text.strip()
@@ -123,17 +117,8 @@ class EmbeddingService:
 
         return vector_list
 
+    # Generates a 384-dimensional normalized vector for a user search query.
     def embed_query(self, query: str) -> List[float]:
-        """
-        Generates a 384-dimensional normalized vector for a user search query.
-        Uses the exact same embedding model configuration as document chunks.
-        
-        Args:
-            query: Non-empty query string.
-            
-        Returns:
-            List of 384 floats.
-        """
         if not isinstance(query, str):
             raise TypeError(f"Expected query to be a string, got {type(query)}")
         cleaned = query.strip()
@@ -145,6 +130,7 @@ class EmbeddingService:
         # BGE models use standard sentence encoding for queries
         return self.embed_text(cleaned)
 
+    # Generates embeddings for a batch of Chunk objects, preserving complete metadata.
     def embed_chunks(
         self,
         chunks: List[Chunk],

@@ -1,6 +1,17 @@
 """CampusMind AI - Vector Store Service.
 
 Manages dense vector storage, payload indexing, and similarity retrieval in Qdrant.
+
+Responsibilities:
+1. chunk_id_to_uuid(): Converts chunk IDs into deterministic UUIDs formatted for Qdrant points.
+Class VectorStoreService:
+2. VectorStoreService.__init__(): Configures Qdrant client connection and target collection name.
+3. VectorStoreService.client(): Provides access to the underlying QdrantClient instance.
+4. VectorStoreService.ensure_collection(): Verifies existence of collection and creates it if absent.
+5. VectorStoreService.upsert_chunks(): Inserts or updates embedded chunks with metadata payloads into Qdrant.
+6. VectorStoreService.search(): Performs cosine similarity search over vector embeddings with optional filtering.
+7. VectorStoreService.delete_document(): Removes all stored chunks for a specific document ID.
+8. VectorStoreService.count_chunks(): Returns the total number of indexed vectors in the collection.
 """
 
 import os

@@ -1,6 +1,17 @@
 """CampusMind AI - Redis Answer Cache Service.
 
 Provides deterministic caching and invalidation of grounded answers using Redis.
+
+Responsibilities:
+1. normalize_question(): Standardizes question strings by lowercasing and trimming whitespace.
+2. generate_cache_key(): Builds a deterministic SHA-256 cache key from normalized query, version, and scope.
+Class RedisCacheService:
+3. RedisCacheService.__init__(): Initializes cache configuration and connection settings.
+4. RedisCacheService.client(): Connects or returns active Redis client instance.
+5. RedisCacheService.get_answer(): Retrieves cached grounded answer if present.
+6. RedisCacheService.set_answer(): Stores serialized grounded answer with TTL into Redis.
+7. RedisCacheService.update_kb_version(): Updates knowledge-base version to invalidate prior cache entries.
+8. RedisCacheService.delete_scope_answer(): Deletes specific cached answer entry by query and scope.
 """
 
 import os
@@ -22,37 +33,20 @@ DEFAULT_KB_VERSION = "v1"
 DEFAULT_ACCESS_SCOPE = "public"
 
 
+# Normalizes question text for consistent cache key generation.
 def normalize_question(question: str) -> str:
-    """
-    Normalizes question text for consistent cache key generation:
-    strips leading/trailing whitespace, converts to lowercase, and collapses extra internal whitespace.
-    """
     if not question:
         return ""
     return " ".join(question.strip().lower().split())
 
 
+# Generates a deterministic Redis cache key using question hash, KB version, and scope.
 def generate_cache_key(
     question: str,
     kb_version: str = DEFAULT_KB_VERSION,
     scope: str = DEFAULT_ACCESS_SCOPE,
     namespace: str = DEFAULT_REDIS_NAMESPACE,
 ) -> str:
-    """
-    Generates a deterministic Redis cache key.
-
-    Formula:
-        {namespace}:{kb_version}:{scope}:{sha256(normalized_question)}
-
-    Args:
-        question: User query string.
-        kb_version: Knowledge-base version string (e.g. 'v1', 'v2026-11').
-        scope: Access context / permission tier (e.g. 'public', 'course_cs101').
-        namespace: Cache key prefix.
-
-    Returns:
-        Structured cache key string.
-    """
     normalized = normalize_question(question)
     query_hash = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
     clean_version = kb_version.strip() if kb_version else DEFAULT_KB_VERSION
@@ -62,11 +56,10 @@ def generate_cache_key(
     return f"{clean_ns}:{clean_version}:{clean_scope}:{query_hash}"
 
 
+# Manages caching and retrieval of GroundedAnswer objects in Redis.
 class RedisCacheService:
-    """
-    Manages caching and retrieval of GroundedAnswer objects in Redis.
-    """
 
+    # Initializes cache configuration and connection settings.
     def __init__(
         self,
         redis_url: Optional[str] = None,
@@ -75,16 +68,6 @@ class RedisCacheService:
         namespace: str = DEFAULT_REDIS_NAMESPACE,
         client: Optional[Any] = None,
     ):
-        """
-        Initializes the cache service.
-
-        Args:
-            redis_url: Redis connection URL (defaults to REDIS_URL from env).
-            default_ttl: Expiration TTL in seconds (defaults to REDIS_CACHE_TTL or 1800s).
-            kb_version: Current knowledge-base version.
-            namespace: Namespace prefix for Redis keys.
-            client: Optional pre-configured Redis client (used for dependency injection & testing).
-        """
         self.redis_url = redis_url or os.getenv("REDIS_URL", "redis://localhost:6379/0")
         
         # Prioritize explicit constructor default_ttl if provided, otherwise check env
@@ -99,9 +82,9 @@ class RedisCacheService:
         self._client = client
         self._is_connected: Optional[bool] = None
 
+    # Lazy-initializes or returns the active Redis client connection.
     @property
     def client(self) -> Optional[Any]:
-        """Lazy-initializes or returns the Redis client connection."""
         if self._client is not None:
             return self._client
 
@@ -118,23 +101,13 @@ class RedisCacheService:
             logger.warning("Failed to initialize Redis client (%s): %s", self.redis_url, e)
             return None
 
+    # Retrieves a cached GroundedAnswer for a question if present and valid.
     def get_answer(
         self,
         question: str,
         scope: str = DEFAULT_ACCESS_SCOPE,
         kb_version: Optional[str] = None,
     ) -> Optional[GroundedAnswer]:
-        """
-        Retrieves a cached GroundedAnswer for a question if present and valid.
-
-        Args:
-            question: User question string.
-            scope: Access scope.
-            kb_version: Optional override for knowledge-base version.
-
-        Returns:
-            GroundedAnswer if cache hit, else None.
-        """
         if not question or not question.strip():
             return None
 
@@ -164,6 +137,7 @@ class RedisCacheService:
             logger.warning("Redis get error for key %s: %s", cache_key, e)
             return None
 
+    # Caches a GroundedAnswer in Redis with expiration TTL.
     def set_answer(
         self,
         question: str,
@@ -172,20 +146,6 @@ class RedisCacheService:
         kb_version: Optional[str] = None,
         ttl: Optional[int] = None,
     ) -> bool:
-        """
-        Caches a GroundedAnswer in Redis with expiration TTL.
-        Only successful, grounded answers with sufficient context are recommended to be cached.
-
-        Args:
-            question: User question string.
-            answer: GroundedAnswer instance to cache.
-            scope: Access scope.
-            kb_version: Optional override for knowledge-base version.
-            ttl: Expiration in seconds (defaults to default_ttl).
-
-        Returns:
-            True if cached successfully, False otherwise.
-        """
         if not question or not question.strip():
             return False
 
@@ -220,27 +180,21 @@ class RedisCacheService:
             logger.warning("Redis set error for key %s: %s", cache_key, e)
             return False
 
+    # Updates the active knowledge-base version for instant cache invalidation.
     def update_kb_version(self, new_version: str):
-        """
-        Updates the active knowledge base version.
-        This provides instantaneous cache invalidation for all subsequent queries
-        without issuing expensive mass deletion commands across Redis keys.
-        """
         if not new_version or not new_version.strip():
             raise ValueError("Knowledge base version cannot be empty.")
         old = self.kb_version
         self.kb_version = new_version.strip()
         logger.info("Knowledge base version updated: %s -> %s (cache invalidated)", old, self.kb_version)
 
+    # Deletes a specific cached answer by its key components.
     def delete_scope_answer(
         self,
         question: str,
         scope: str = DEFAULT_ACCESS_SCOPE,
         kb_version: Optional[str] = None,
     ) -> bool:
-        """
-        Deletes a specific cached answer by its key components.
-        """
         version = kb_version or self.kb_version
         cache_key = generate_cache_key(
             question=question,

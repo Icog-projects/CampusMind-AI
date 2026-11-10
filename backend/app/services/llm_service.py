@@ -1,13 +1,13 @@
-"""
-CampusMind AI - LLM Service Layer
-Provides an extensible provider abstraction for Large Language Model generation,
-with Groq as the primary provider.
+"""CampusMind AI - Large Language Model Service.
 
-Features:
-- Configurable provider initialization from environment variables (`GROQ_API_KEY`, `GROQ_MODEL`).
-- Default model: openai/gpt-oss-120b.
-- Robust exception handling for missing API keys, timeouts, connection errors, and rate limits.
-- Modular BaseLLMProvider interface for seamless future provider switching.
+Provides extensible provider abstraction for text generation, supporting Groq LLM integration.
+
+Responsibilities:
+Class BaseLLMProvider:
+1. BaseLLMProvider.generate(): Abstract interface defining the generation contract.
+Class GroqProvider:
+2. GroqProvider.__init__(): Initializes the Groq client, API key, model, and timeout settings.
+3. GroqProvider.generate(): Sends chat completion requests to the Groq API and handles provider errors.
 """
 
 import os

@@ -1,15 +1,14 @@
-"""
-CampusMind AI - Redis Caching Evaluation Runner (SRS Section 12.3)
-Compares system performance with Redis Caching DISABLED vs. ENABLED:
-1. Runs identical 25 benchmark queries under both conditions.
-2. In the enabled condition, repeats a subset of queries to simulate realistic traffic.
-3. Measures:
-   - Hit rate (%) = hits / (hits + misses) * 100
-   - Cache hit latency vs cache miss latency
-   - Average response latency reduction (%)
-   - LLM calls avoided
-   - Verifies cache hits bypass embedding, retrieval, and LLM calls.
-4. Outputs results in JSON, CSV, and summary tables.
+"""CampusMind AI - Redis Caching Evaluation Runner.
+
+Compares response latency, hit rates, and avoided LLM inference between cached and non-cached queries.
+
+Responsibilities:
+Class MockFastLLM:
+1. MockFastLLM.__init__(): Initializes LLM call counter.
+2. MockFastLLM.generate(): Simulates controlled LLM responses without consuming API credits.
+Class CacheEvaluator:
+3. CacheEvaluator.__init__(): Configures cache evaluation harness and RAG pipeline.
+4. CacheEvaluator.run_benchmark(): Runs benchmark question suite and computes cache performance metrics.
 """
 
 import time

@@ -1,9 +1,10 @@
-"""
-CampusMind AI - Authentication & Role Authorization Dependencies
-Provides reusable FastAPI dependencies for:
-1. Extracting and validating JWT bearer tokens (get_current_user).
-2. Role verification (require_role, require_admin, require_staff_or_admin).
-3. Public vs protected endpoint access control per SRS Version 1.2 & 1.3.
+"""CampusMind AI - Authentication & Role Authorization Dependencies.
+
+Provides JWT validation and role-based access control dependencies.
+
+Responsibilities:
+1. get_current_user(): Validates the incoming JWT bearer token and resolves the active user record.
+2. require_roles(): Factory creating authorization dependencies for permitted user roles.
 """
 
 import logging

@@ -1,6 +1,13 @@
-"""
-CampusMind AI - Database Engine and Session Factory
+"""CampusMind AI - Database Engine and Session Factory.
+
 Manages SQLAlchemy engine creation, connection pooling, and scoped sessions for MySQL.
+
+Responsibilities:
+1. get_database_url(): Resolves MySQL connection URL from environment variables.
+2. get_engine(): Creates or returns the singleton SQLAlchemy engine with connection pooling.
+3. get_session_factory(): Creates or returns the configured SQLAlchemy sessionmaker.
+4. get_db_session(): FastAPI generator yielding a scoped database session and closing it on completion.
+5. init_db(): Creates all database tables defined on declarative Base metadata.
 """
 
 import os

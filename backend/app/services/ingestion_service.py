@@ -1,9 +1,11 @@
-"""
-CampusMind AI - Ingestion Service
-Coordinates complete document ingestion pipeline according to SRS v1.3, Section 4.3 & 5:
-Upload -> validate -> extract & clean -> chunk -> attach metadata -> embed chunks
--> store vectors & payloads in Qdrant -> update BM25 index
--> update MySQL document status & chunk count -> invalidate Redis cache.
+"""CampusMind AI - Ingestion Service.
+
+Coordinates document persistence, text extraction, chunking, embedding, indexing, and cache invalidation.
+
+Responsibilities:
+Class IngestionService:
+1. IngestionService.__init__(): Initializes database session, extraction, chunking, and indexing services.
+2. IngestionService.ingest_file(): Executes the end-to-end ingestion pipeline from uploaded bytes to indexed vector points.
 """
 
 import os

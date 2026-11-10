@@ -1,10 +1,11 @@
-"""
-CampusMind AI - Chat Service
-Provides high-level business workflow for chat conversations:
-- Coordinates session management and message logging
-- Orchestrates with RAGService to produce grounded answers
-- Persists both user and assistant interactions in MySQL (SRS Section 8.1, 9.1, FR-16)
-  regardless of whether the answer is generated via LLM or served as a Redis cache hit.
+"""CampusMind AI - Chat Service.
+
+Manages conversational sessions, message persistence, and orchestrates RAG queries.
+
+Responsibilities:
+Class ChatService:
+1. ChatService.__init__(): Initializes database session, chat repository, and RAG service.
+2. ChatService.ask(): Handles user questions, coordinates session creation, RAG query, and database logging.
 """
 
 import logging

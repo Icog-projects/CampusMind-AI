@@ -1,7 +1,10 @@
-"""
-CampusMind AI - FastAPI Application Entry Point
-Exposes core RAG endpoints for document ingestion, retrieval, grounded question answering,
-cache metrics, and dependency health checks per SRS Version 1.3.
+"""CampusMind AI - FastAPI Application Entry Point.
+
+Exposes core endpoints for authentication, document management, chat, and telemetry.
+
+Responsibilities:
+1. lifespan(): Manages database table initialization and startup/shutdown lifecycle.
+2. root(): Serves the root health and service information response.
 """
 
 import logging

@@ -1,7 +1,9 @@
-"""
-CampusMind AI - Run Evaluation Entrypoint Script
-CLI entrypoint to run the complete evaluation suite and generate reports:
-    python -m evaluation.run_eval
+"""CampusMind AI - Run Evaluation Entrypoint Script.
+
+Executes chunking and caching benchmark experiments and writes technical reports.
+
+Responsibilities:
+1. main(): Orchestrates evaluation execution across chunking and caching benchmark runs.
 """
 
 import os

@@ -1,6 +1,12 @@
 """CampusMind AI - RAG Orchestration Service.
 
 Coordinates cache lookup, query embedding, hybrid retrieval, and grounded generation.
+
+Responsibilities:
+Class RAGService:
+1. RAGService.__init__(): Initializes the orchestrator with cache, embedding, retrieval, and generation services.
+2. RAGService.query(): Executes the complete cache-aside RAG pipeline for a user question.
+3. RAGService.invalidate_knowledge_base(): Rotates knowledge-base version to invalidate cached answers.
 """
 
 import logging
@@ -15,11 +21,10 @@ from app.services.generation_service import GenerationService
 logger = logging.getLogger(__name__)
 
 
+# End-to-end RAG orchestrator integrating Cache, Embedding, Hybrid Retrieval, and Generation.
 class RAGService:
-    """
-    End-to-end RAG orchestrator integrating Cache, Embedding, Hybrid Retrieval, and Generation.
-    """
 
+    # Initializes the RAGService with required dependencies.
     def __init__(
         self,
         cache_service: Optional[RedisCacheService] = None,
@@ -27,20 +32,12 @@ class RAGService:
         hybrid_retrieval_service: Optional[HybridRetrievalService] = None,
         generation_service: Optional[GenerationService] = None,
     ):
-        """
-        Initializes the RAGService with required dependencies.
-
-        Args:
-            cache_service: RedisCacheService instance.
-            embedding_service: EmbeddingService instance.
-            hybrid_retrieval_service: HybridRetrievalService instance.
-            generation_service: GenerationService instance.
-        """
         self.cache_service = cache_service or RedisCacheService()
         self.embedding_service = embedding_service
         self.hybrid_retrieval_service = hybrid_retrieval_service
         self.generation_service = generation_service or GenerationService()
 
+    # Processes a user query end-to-end with cache-aside lookup and hybrid retrieval.
     def query(
         self,
         question: str,
@@ -50,20 +47,6 @@ class RAGService:
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
     ) -> GroundedAnswer:
-        """
-        Processes a user query end-to-end with cache-aside lookup.
-
-        Args:
-            question: User question string.
-            scope: Access scope / permission tier (default: 'public').
-            filter_document_id: Optional documentId filter.
-            top_k: Number of chunks to fuse in hybrid retrieval.
-            temperature: LLM generation temperature.
-            max_tokens: LLM generation token limit.
-
-        Returns:
-            GroundedAnswer containing the answer text, citations, and metadata.
-        """
         if not isinstance(question, str):
             raise TypeError(f"question must be a string, got {type(question)}")
 
@@ -128,9 +111,6 @@ class RAGService:
 
         return answer
 
+    # Rotates active knowledge-base version to invalidate cached answers.
     def invalidate_knowledge_base(self, new_version: str):
-        """
-        Invalidates cached answers when documents in the knowledge base change
-        by rotating the active knowledge-base version.
-        """
         self.cache_service.update_kb_version(new_version)

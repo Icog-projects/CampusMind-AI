@@ -1,10 +1,17 @@
-"""
-CampusMind AI - SQLAlchemy ORM Models
-Defines relational persistence tables according to SRS Version 1.3, Section 9.1:
-1. documents: Tracks uploaded documents, status, chunk counts, and knowledge-base versions.
-2. chat_sessions: Tracks user conversation sessions and metadata.
-3. messages: Stores chat conversation history, role, content, source citations,
-   and cache-hit indicators (even when answers are served directly from Redis).
+"""CampusMind AI - SQLAlchemy ORM Models.
+
+Defines database models for users, documents, chat sessions, and messages.
+
+Responsibilities:
+1. utc_now(): Generates timezone-naive UTC datetime timestamps for database records.
+Class UserModel:
+2. UserModel.__repr__(): Formats string representation of user account models.
+Class DocumentModel:
+3. DocumentModel.__repr__(): Formats string representation of document models.
+Class ChatSessionModel:
+4. ChatSessionModel.__repr__(): Formats string representation of chat session models.
+Class MessageModel:
+5. MessageModel.__repr__(): Formats string representation of chat message models.
 """
 
 import uuid

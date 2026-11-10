@@ -1,13 +1,20 @@
-"""
-CampusMind AI - Chunking Service
-Comprehensive implementation supporting three chunking methods:
-1. Recursive Character Chunking (LangChain RecursiveCharacterTextSplitter)
-2. Fixed-Size Chunking (token-based windowing with configurable overlap)
-3. Genuine Semantic Chunking (sentence splitting, embedding similarity analysis,
-   adaptive boundary detection, and configurable chunk size/overlap constraints)
+"""CampusMind AI - Chunking Service.
 
-Preserves complete document provenance metadata (documentId, documentName, chunkId,
-chunkIndex, chunkingMethod, pageNumber, tokenCountApprox, characterCount).
+Provides fixed, recursive, and semantic text chunking with provenance metadata.
+
+Responsibilities:
+1. approximate_tokens_from_words(): Estimates token counts from whitespace-separated words.
+2. split_into_sentences(): Divides raw text into distinct grammatical sentences.
+3. cosine_similarity(): Computes dot-product similarity between two 1D vectors.
+Class ChunkingService:
+4. ChunkingService.__init__(): Initializes default token sizes, overlaps, and thresholds.
+5. ChunkingService.embedding_service(): Returns the assigned or lazily created EmbeddingService.
+6. ChunkingService._validate_config(): Validates that chunk size and overlap values are positive and consistent.
+7. ChunkingService._prepare_pages(): Converts varied document inputs into standardized ExtractedPage lists.
+8. ChunkingService.recursive_chunking(): Chunks text recursively using separators and tokenizer lengths.
+9. ChunkingService.fixed_chunking(): Performs sliding-window fixed token chunking with overlap.
+10. ChunkingService.semantic_chunking(): Groups sentences into chunks based on semantic similarity transitions.
+11. ChunkingService.chunk_document(): Dispatches chunking tasks to the chosen strategy.
 """
 
 import re

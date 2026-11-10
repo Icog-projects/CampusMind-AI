@@ -1,8 +1,29 @@
-"""
-CampusMind AI - Relational Repositories
-Encapsulates database access operations for:
-1. DocumentRepository: CRUD for uploaded documents and status updates.
-2. ChatRepository: CRUD for chat sessions and messages with cache-hit indicator recording.
+"""CampusMind AI - Relational Repositories.
+
+Encapsulates database access operations for users, documents, and chat records.
+
+Responsibilities:
+Class UserRepository:
+1. UserRepository.__init__(): Initializes database session for user operations.
+2. UserRepository.create_user(): Persists a new user record into the database.
+3. UserRepository.get_by_id(): Retrieves user account by unique user ID.
+4. UserRepository.get_by_email(): Finds user record matching given email address.
+5. UserRepository.list_users(): Lists user records with pagination and optional role filters.
+Class DocumentRepository:
+6. DocumentRepository.__init__(): Initializes database session for document operations.
+7. DocumentRepository.create_document(): Inserts a new document record with status and metadata.
+8. DocumentRepository.get_by_id(): Fetches document record by document ID.
+9. DocumentRepository.list_documents(): Lists document records with status filters and pagination.
+10. DocumentRepository.update_status(): Updates processing status, chunk count, and version of a document.
+11. DocumentRepository.delete_document(): Removes document record by document ID.
+Class ChatRepository:
+12. ChatRepository.__init__(): Initializes database session for chat operations.
+13. ChatRepository.create_session(): Creates a new conversation session record.
+14. ChatRepository.get_session(): Retrieves conversation session record by session ID.
+15. ChatRepository.list_sessions_for_user(): Retrieves all chat sessions owned by a specific user.
+16. ChatRepository.create_message(): Records a user or assistant chat message with citations and cache flags.
+17. ChatRepository.get_session_messages(): Retrieves all conversation messages for a chat session.
+18. ChatRepository.delete_session(): Deletes a conversation session and cascades to its messages.
 """
 
 import uuid

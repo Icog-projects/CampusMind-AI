@@ -1,6 +1,12 @@
 """CampusMind AI - Hybrid Retrieval Service.
 
 Fuses lexical BM25 and dense vector search results using Reciprocal Rank Fusion (RRF).
+
+Responsibilities:
+1. compute_rrf(): Combines ranked candidate chunk lists using the Reciprocal Rank Fusion formula.
+Class HybridRetrievalService:
+2. HybridRetrievalService.__init__(): Initializes BM25, vector store, and fusion configuration parameters.
+3. HybridRetrievalService.search(): Executes parallel lexical and semantic searches and returns fused results.
 """
 
 import logging

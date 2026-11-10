@@ -1,7 +1,9 @@
-"""
-CampusMind AI - Evaluation Report Generator (SRS Section 12.2, 12.3)
-Generates comprehensive Markdown evaluation reports from measured chunking
-and caching experiment results.
+"""CampusMind AI - Evaluation Report Generator.
+
+Generates structured Markdown evaluation reports from measured experiment results.
+
+Responsibilities:
+1. generate_evaluation_markdown(): Formats benchmark chunking and caching metrics into markdown comparison tables.
 """
 
 from typing import Dict, Any

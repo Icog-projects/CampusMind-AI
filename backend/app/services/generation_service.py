@@ -1,6 +1,13 @@
 """CampusMind AI - Grounded Generation Service.
 
 Generates grounded answers with verified source citations using retrieved document chunks.
+
+Responsibilities:
+Class GenerationService:
+1. GenerationService.__init__(): Configures the LLM provider, temperature, and generation token limit.
+2. GenerationService.provider(): Returns the active LLM provider instance, initializing Groq if absent.
+3. GenerationService.format_evidence(): Formats retrieved document chunks into numbered context blocks.
+4. GenerationService.generate_answer(): Generates grounded responses with extracted inline citations.
 """
 
 import re

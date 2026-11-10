@@ -1,7 +1,11 @@
-"""
-CampusMind AI - Evaluation Metrics Utilities
-Calculates formal retrieval metrics (Recall@k, Mean Reciprocal Rank MRR)
-and cache performance metrics (hit rate, latency reduction, avoided LLM calls).
+"""CampusMind AI - Evaluation Metrics Utilities.
+
+Calculates retrieval metrics (Recall@k, MRR) and cache performance metrics.
+
+Responsibilities:
+1. calculate_recall_at_k(): Computes fraction of expected document IDs present in top-k results.
+2. calculate_mrr(): Computes Mean Reciprocal Rank based on the rank of the first relevant document.
+3. calculate_cache_metrics(): Evaluates cache hit rate, avoided LLM invocations, and latency speedup.
 """
 
 from typing import List, Sequence, Set, Dict, Any
