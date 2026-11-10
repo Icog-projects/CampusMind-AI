@@ -1,0 +1,4 @@
+method,chunk_count,avg_chunk_tokens,avg_chunk_chars,chunking_time_s,recall_at_5,mrr,avg_retrieval_latency_ms
+fixed,8,58.0,296.5,0.0004,1.0,0.7685,1.13
+recursive,8,58.0,296.5,0.0007,1.0,0.7685,2.55
+semantic,30,23.2,121.7,13.9059,0.7222,0.6028,1.86

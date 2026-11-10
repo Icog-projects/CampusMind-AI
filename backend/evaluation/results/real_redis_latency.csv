@@ -1,0 +1,10 @@
+Metric,Live Docker Redis Value,Description
+Target Redis Instance,redis://localhost:6379/0,Live Redis server in Docker container
+Total Requests,40,25 unique + 15 repeat questions
+Cache Hits / Misses,15 / 25,Hit rate: 37.5%
+Raw Redis Direct GET Latency,0.5 ms,Native TCP socket + JSON deserialization
+Raw Redis Direct SET Latency,1.514 ms,Native TCP socket + JSON serialization
+End-to-End RAG Cache Hit Latency,0.69 ms,Served instantly from live Redis
+End-to-End RAG Cache Miss Latency,54.15 ms,Full retrieval + generation pipeline
+Latency Reduction,98.73%,Cache hit speedup over live miss
+LLM Invocations Avoided,15,Executed 25 of 40 calls

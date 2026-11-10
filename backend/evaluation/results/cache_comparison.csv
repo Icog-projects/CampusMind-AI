@@ -1,0 +1,8 @@
+Metric,Caching Disabled,Caching Enabled
+Total Requests,40,40
+Cache Hits / Misses,0 / 40,15 / 25
+Hit Rate (%),0.0%,37.5%
+Avg Latency (ms),51.23 ms,0.2 ms (hit) / 51.17 ms (miss)
+Latency Reduction (%),0.0%,99.61%
+LLM Calls Executed,40,25
+LLM Calls Avoided,0,15

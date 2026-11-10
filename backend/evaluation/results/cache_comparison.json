@@ -1,0 +1,20 @@
+{
+  "caching_disabled": {
+    "total_queries": 40,
+    "avg_latency_ms": 51.23,
+    "llm_calls": 40,
+    "hits": 0,
+    "misses": 40
+  },
+  "caching_enabled": {
+    "total_queries": 40,
+    "hits": 15,
+    "misses": 25,
+    "hit_rate_pct": 37.5,
+    "avg_hit_latency_ms": 0.2,
+    "avg_miss_latency_ms": 51.17,
+    "latency_reduction_pct": 99.61,
+    "llm_calls_avoided": 15,
+    "actual_llm_calls": 25
+  }
+}

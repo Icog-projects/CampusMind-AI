@@ -1,0 +1,32 @@
+{
+  "fixed": {
+    "method": "fixed",
+    "chunk_count": 8,
+    "avg_chunk_tokens": 58.0,
+    "avg_chunk_chars": 296.5,
+    "chunking_time_s": 0.0004,
+    "recall_at_5": 1.0,
+    "mrr": 0.7685,
+    "avg_retrieval_latency_ms": 1.13
+  },
+  "recursive": {
+    "method": "recursive",
+    "chunk_count": 8,
+    "avg_chunk_tokens": 58.0,
+    "avg_chunk_chars": 296.5,
+    "chunking_time_s": 0.0007,
+    "recall_at_5": 1.0,
+    "mrr": 0.7685,
+    "avg_retrieval_latency_ms": 2.55
+  },
+  "semantic": {
+    "method": "semantic",
+    "chunk_count": 30,
+    "avg_chunk_tokens": 23.2,
+    "avg_chunk_chars": 121.7,
+    "chunking_time_s": 13.9059,
+    "recall_at_5": 0.7222,
+    "mrr": 0.6028,
+    "avg_retrieval_latency_ms": 1.86
+  }
+}

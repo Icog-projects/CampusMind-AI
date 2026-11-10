@@ -1,0 +1,525 @@
+"""
+CampusMind AI - API Routers
+Implements minimal FastAPI endpoints according to SRS Version 1.2 & 1.3:
+- Authentication & JWT Token Management:
+  * POST /auth/register: Create user account (defaults to student, prevents public admin creation).
+  * POST /auth/login: Verify credentials and issue signed JWT access token.
+  * GET /auth/me: Retrieve current authenticated user profile.
+- Documents Management (Role: Admin only):
+  * POST /documents/upload: Admin-only document upload & indexing.
+  * GET /documents: List processed documents in MySQL.
+- Chat Operations (Role: Authenticated Student, Staff, Admin):
+  * POST /chat/ask: User question answering with role/scope isolation and user history association.
+  * GET /chat/history/{session_id}: View history of owned chat session.
+- System Diagnostics:
+  * GET /health: Public health check.
+  * GET /metrics/cache: Admin/Staff cache analytics.
+"""
+
+import os
+import logging
+from typing import List, Optional
+from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, status
+from sqlalchemy.orm import Session
+from sqlalchemy import text
+
+from app.core.database import get_db_session
+from app.core.security import hash_password, verify_password, create_access_token
+from app.core.auth import (
+    get_current_user,
+    require_admin,
+    require_authenticated_user,
+)
+from app.models.db_models import UserModel
+from app.repositories.database_repository import UserRepository, DocumentRepository, ChatRepository
+from app.services.ingestion_service import IngestionService
+from app.services.chat_service import ChatService
+from app.services.rag_service import RAGService
+from app.services.cache_service import RedisCacheService
+from app.services.vector_store import VectorStoreService
+from app.services.document_extractor import (
+    UnsupportedFileTypeError,
+    FileValidationError,
+    DocumentExtractionError,
+)
+from app.schemas.api_schemas import (
+    UserRegisterRequest,
+    UserLoginRequest,
+    UserResponse,
+    TokenResponse,
+    DocumentResponse,
+    DocumentUploadResponse,
+    ChatAskRequest,
+    ChatAskResponse,
+    HealthResponse,
+    DependencyStatus,
+    CacheMetrics,
+)
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter()
+
+# Global singletons for in-process shared services
+_shared_rag_service: Optional[RAGService] = None
+
+# In-memory session counters for FR-15 cache metrics
+_cache_hits_counter: int = 0
+_cache_misses_counter: int = 0
+
+
+def get_rag_service() -> RAGService:
+    global _shared_rag_service
+    if _shared_rag_service is None:
+        from app.services.embedding_service import EmbeddingService
+        from app.services.vector_store import VectorStoreService
+        from app.services.retrieval_bm25 import BM25RetrievalService
+        from app.services.hybrid_retrieval import HybridRetrievalService
+        from app.services.generation_service import GenerationService
+
+        embed_svc = EmbeddingService()
+        vec_store = VectorStoreService()
+        bm25_svc = BM25RetrievalService()
+        hybrid_svc = HybridRetrievalService(bm25_service=bm25_svc, vector_store=vec_store)
+        gen_svc = GenerationService()
+
+        _shared_rag_service = RAGService(
+            embedding_service=embed_svc,
+            hybrid_retrieval_service=hybrid_svc,
+            generation_service=gen_svc,
+        )
+    return _shared_rag_service
+
+
+# ---------------------------------------------------------------------------
+# 1. Authentication Endpoints (SRS v1.2, Section 3.1 & 8.1)
+# ---------------------------------------------------------------------------
+
+@router.post(
+    "/auth/register",
+    response_model=UserResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Register a new user account (Student or Staff)",
+    tags=["Authentication"],
+)
+def register(
+    req: UserRegisterRequest,
+    db: Session = Depends(get_db_session),
+):
+    """
+    Registers a new account.
+    - Hashes password securely via bcrypt.
+    - Prevents public registration of 'admin' role; defaults to 'student'.
+    - Rejects duplicate email addresses with 400 Bad Request.
+    """
+    user_repo = UserRepository(db)
+
+    # 1. Check for existing email
+    existing_user = user_repo.get_by_email(req.email)
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"An account with email '{req.email.strip().lower()}' already exists.",
+        )
+
+    # 2. Prevent unauthorized self-assignment of admin role
+    clean_role = (req.role or "student").strip().lower()
+    if clean_role == "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Public registration as admin is prohibited. Admin accounts must be created through a controlled process.",
+        )
+    if clean_role not in ("student", "staff"):
+        clean_role = "student"
+
+    # 3. Hash password and persist user
+    hashed_pwd = hash_password(req.password)
+    user = user_repo.create_user(
+        name=req.name,
+        email=req.email,
+        password_hash=hashed_pwd,
+        role=clean_role,
+    )
+
+    logger.info("New user registered: %s (role: %s)", user.email, user.role)
+    return user
+
+
+@router.post(
+    "/auth/login",
+    response_model=TokenResponse,
+    status_code=status.HTTP_200_OK,
+    summary="User login and JWT access token issuance",
+    tags=["Authentication"],
+)
+def login(
+    req: UserLoginRequest,
+    db: Session = Depends(get_db_session),
+):
+    """
+    Authenticates user with email and password.
+    Returns signed JWT token with user id and role.
+    """
+    user_repo = UserRepository(db)
+    user = user_repo.get_by_email(req.email)
+
+    if not user or not verify_password(req.password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    access_token = create_access_token(
+        user_id=user.id,
+        email=user.email,
+        role=user.role,
+    )
+
+    return TokenResponse(
+        access_token=access_token,
+        token_type="bearer",
+        user=UserResponse.model_validate(user),
+    )
+
+
+@router.get(
+    "/auth/me",
+    response_model=UserResponse,
+    summary="Get current user profile",
+    tags=["Authentication"],
+)
+def get_me(
+    current_user: UserModel = Depends(require_authenticated_user),
+):
+    """Returns the authenticated user's profile."""
+    return current_user
+
+
+# ---------------------------------------------------------------------------
+# 2. Document Endpoints (Role: Admin only per SRS v1.2 Section 2)
+# ---------------------------------------------------------------------------
+
+@router.post(
+    "/documents/upload",
+    response_model=DocumentUploadResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Upload and process a document (PDF, DOCX, TXT) [Admin Only]",
+    tags=["Documents"],
+)
+async def upload_document(
+    file: UploadFile = File(..., description="Document file (.pdf, .docx, or .txt)"),
+    uploader_id: Optional[str] = Form(None),
+    chunking_method: str = Form("recursive"),
+    chunk_size_tokens: Optional[int] = Form(None),
+    chunk_overlap_tokens: Optional[int] = Form(None),
+    current_user: UserModel = Depends(require_admin),
+    db: Session = Depends(get_db_session),
+    rag: RAGService = Depends(get_rag_service),
+):
+    """
+    Admin-only endpoint to upload, chunk, embed, index documents,
+    and invalidate the Redis cache.
+    """
+    if not file.filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Uploaded file must have a valid filename.",
+        )
+
+    try:
+        content_bytes = await file.read()
+        if len(content_bytes) == 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Uploaded file is empty.",
+            )
+
+        ingestion = IngestionService(
+            db_session=db,
+            embedding_service=rag.embedding_service,
+            vector_store_service=rag.hybrid_retrieval_service.vector_store if rag.hybrid_retrieval_service else None,
+            bm25_service=rag.hybrid_retrieval_service.bm25_service if rag.hybrid_retrieval_service else None,
+            cache_service=rag.cache_service,
+        )
+
+        result = ingestion.ingest_file(
+            file_bytes=content_bytes,
+            filename=file.filename,
+            uploader_id=uploader_id or current_user.id,
+            chunking_method=chunking_method,
+            chunk_size_tokens=chunk_size_tokens,
+            chunk_overlap_tokens=chunk_overlap_tokens,
+        )
+
+        return DocumentUploadResponse(
+            document_id=result["document_id"],
+            filename=result["filename"],
+            status=result["status"],
+            chunk_count=result["chunk_count"],
+            version=result["version"],
+            message="Document successfully processed and indexed into CampusMind AI.",
+        )
+
+    except (UnsupportedFileTypeError, FileValidationError) as val_err:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(val_err),
+        )
+    except DocumentExtractionError as ext_err:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Extraction failure: {str(ext_err)}",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Unhandled upload error: %s", e, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while processing the document.",
+        )
+
+
+@router.get(
+    "/documents",
+    response_model=List[DocumentResponse],
+    summary="List processed documents [Admin Only]",
+    tags=["Documents"],
+)
+def list_documents(
+    status_filter: Optional[str] = None,
+    version: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+    current_user: UserModel = Depends(require_admin),
+    db: Session = Depends(get_db_session),
+):
+    """Retrieves document records from MySQL (Admin only)."""
+    repo = DocumentRepository(db)
+    docs = repo.list_documents(
+        status=status_filter,
+        version=version,
+        limit=limit,
+        offset=offset,
+    )
+    return docs
+
+
+# ---------------------------------------------------------------------------
+# 3. Chat Endpoints (Protected: Authenticated Users)
+# ---------------------------------------------------------------------------
+
+@router.post(
+    "/chat/ask",
+    response_model=ChatAskResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Submit a query and receive a grounded answer with citations [Authenticated]",
+    tags=["Chat"],
+)
+def ask_question(
+    req: ChatAskRequest,
+    current_user: UserModel = Depends(require_authenticated_user),
+    db: Session = Depends(get_db_session),
+    rag: RAGService = Depends(get_rag_service),
+):
+    """
+    Submits a user question to CampusMind AI.
+    - Requires authenticated student, staff, or admin.
+    - Associates conversation and messages with current_user.id.
+    - Verifies session ownership if session_id is provided.
+    - Enforces safe cache-key scoping consistent with user role (e.g. public vs staff).
+    """
+    global _cache_hits_counter, _cache_misses_counter
+
+    if not req.question or not req.question.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Question cannot be empty.",
+        )
+
+    chat_repo = ChatRepository(db)
+
+    # Verify session ownership if existing session_id supplied
+    if req.session_id:
+        existing_sess = chat_repo.get_session(req.session_id)
+        if existing_sess and existing_sess.user_id and existing_sess.user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to access or append to this conversation session.",
+            )
+
+    # Set access scope according to user role to prevent unauthorized data cross-talk
+    applicable_scope = req.scope
+    if current_user.role == "student" and req.scope != "public":
+        # Students are constrained to public documents
+        applicable_scope = "public"
+
+    chat_service = ChatService(db_session=db, rag_service=rag)
+
+    try:
+        result = chat_service.ask(
+            question=req.question,
+            session_id=req.session_id,
+            user_id=current_user.id,
+            scope=applicable_scope,
+            filter_document_id=req.filter_document_id,
+            top_k=req.top_k,
+        )
+
+        # Track runtime cache metrics (FR-15)
+        if result["is_cache_hit"]:
+            _cache_hits_counter += 1
+        else:
+            _cache_misses_counter += 1
+
+        return ChatAskResponse(
+            session_id=result["session_id"],
+            message_id=result["message_id"],
+            answer=result["answer"],
+            sources=result["sources"],
+            has_sufficient_context=result["has_sufficient_context"],
+            is_cache_hit=result["is_cache_hit"],
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error in ask_question endpoint: %s", e, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to generate answer for the submitted query.",
+        )
+
+
+@router.get(
+    "/chat/history/{session_id}",
+    summary="Retrieve chat messages for a session [Authenticated]",
+    tags=["Chat"],
+)
+def get_chat_history(
+    session_id: str,
+    current_user: UserModel = Depends(require_authenticated_user),
+    db: Session = Depends(get_db_session),
+):
+    """
+    Retrieves chronological messages for a chat session.
+    Verifies that the session belongs to current_user (or user is admin).
+    """
+    chat_repo = ChatRepository(db)
+    session_obj = chat_repo.get_session(session_id)
+    if not session_obj:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Chat session not found.",
+        )
+
+    if session_obj.user_id and session_obj.user_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to view this chat session.",
+        )
+
+    messages = chat_repo.get_session_messages(session_id)
+    return [
+        {
+            "id": m.id,
+            "session_id": m.session_id,
+            "role": m.role,
+            "content": m.content,
+            "source_references": m.source_references,
+            "is_cache_hit": m.is_cache_hit,
+            "created_at": m.created_at,
+        }
+        for m in messages
+    ]
+
+
+# ---------------------------------------------------------------------------
+# 4. Health and Metrics Endpoints (FR-15)
+# ---------------------------------------------------------------------------
+
+@router.get(
+    "/health",
+    response_model=HealthResponse,
+    summary="Application health check and dependency status (Public)",
+    tags=["System"],
+)
+def health_check(
+    db: Session = Depends(get_db_session),
+    rag: RAGService = Depends(get_rag_service),
+):
+    """
+    Checks operational status of MySQL, Redis, and Qdrant dependencies.
+    Remains public per requirement.
+    """
+    dependencies: dict[str, DependencyStatus] = {}
+
+    # 1. MySQL Health
+    try:
+        db.execute(text("SELECT 1;"))
+        dependencies["mysql"] = DependencyStatus(status="healthy", details="Connected to MySQL database")
+    except Exception as e:
+        dependencies["mysql"] = DependencyStatus(status="unavailable", details=str(e))
+
+    # 2. Redis Health
+    try:
+        cli = rag.cache_service.client
+        if cli is not None and cli.ping():
+            dependencies["redis"] = DependencyStatus(status="healthy", details="Connected to Redis server")
+        else:
+            dependencies["redis"] = DependencyStatus(status="unavailable", details="Ping failed")
+    except Exception as e:
+        dependencies["redis"] = DependencyStatus(status="unavailable", details=str(e))
+
+    # 3. Qdrant Health
+    try:
+        vs = rag.hybrid_retrieval_service.vector_store if rag.hybrid_retrieval_service else VectorStoreService()
+        vs.client.get_collections()
+        dependencies["qdrant"] = DependencyStatus(status="healthy", details="Qdrant service reachable")
+    except Exception as e:
+        dependencies["qdrant"] = DependencyStatus(status="degraded", details=str(e))
+
+    # Calculate Cache Metrics (FR-15)
+    total_queries = _cache_hits_counter + _cache_misses_counter
+    hit_rate = round((_cache_hits_counter / total_queries * 100.0), 2) if total_queries > 0 else 0.0
+
+    metrics = CacheMetrics(
+        hits=_cache_hits_counter,
+        misses=_cache_misses_counter,
+        total_queries=total_queries,
+        hit_rate_pct=hit_rate,
+        llm_calls_avoided=_cache_hits_counter,
+    )
+
+    all_healthy = all(d.status == "healthy" for d in dependencies.values())
+    overall_status = "healthy" if all_healthy else "degraded"
+
+    return HealthResponse(
+        status=overall_status,
+        app_env="production" if False else "development",
+        dependencies=dependencies,
+        cache_metrics=metrics,
+    )
+
+
+@router.get(
+    "/metrics/cache",
+    response_model=CacheMetrics,
+    summary="Live Redis cache metrics [Admin Only]",
+    tags=["System"],
+)
+def get_cache_metrics(
+    current_user: UserModel = Depends(require_admin),
+):
+    """Returns live cache metrics: hits, misses, hit rate, and avoided LLM calls (Admin only)."""
+    total_queries = _cache_hits_counter + _cache_misses_counter
+    hit_rate = round((_cache_hits_counter / total_queries * 100.0), 2) if total_queries > 0 else 0.0
+
+    return CacheMetrics(
+        hits=_cache_hits_counter,
+        misses=_cache_misses_counter,
+        total_queries=total_queries,
+        hit_rate_pct=hit_rate,
+        llm_calls_avoided=_cache_hits_counter,
+    )
