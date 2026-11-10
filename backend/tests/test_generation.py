@@ -69,7 +69,7 @@ def test_empty_retrieval_handles_without_llm():
     assert isinstance(result, GroundedAnswer)
     assert not result.has_sufficient_context
     assert len(result.sources) == 0
-    assert "No relevant documents" in result.answer
+    assert "couldn't find information" in result.answer.lower()
     assert len(mock_provider.calls) == 0  # LLM must not be called
 
 
@@ -140,7 +140,8 @@ def test_insufficient_evidence_acknowledgment():
     )
 
     assert result.has_sufficient_context is False
-    assert "not contain sufficient information" in result.answer.lower()
+    assert "couldn't find information" in result.answer.lower()
+    assert len(result.sources) == 0
 
 
 def test_missing_api_configuration():

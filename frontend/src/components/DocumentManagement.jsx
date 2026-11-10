@@ -1,3 +1,7 @@
+/**
+ * Document Management Component (Administrator Only)
+ * Provides document upload, validation, parsing, indexing, and corpus listing.
+ */
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 
@@ -12,6 +16,9 @@ export const DocumentManagement = ({ onNavigate }) => {
   const [chunkingMethod, setChunkingMethod] = useState('recursive');
   const fileInputRef = useRef(null);
 
+  /**
+   * Retrieves the current list of indexed university documents.
+   */
   const fetchDocuments = async () => {
     setLoading(true);
     setError(null);
@@ -43,6 +50,9 @@ export const DocumentManagement = ({ onNavigate }) => {
     fetchDocuments();
   }, [token]);
 
+  /**
+   * Validates and stages the user-selected file for upload.
+   */
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -109,18 +119,11 @@ export const DocumentManagement = ({ onNavigate }) => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-6 border-b border-slate-200 gap-4">
         <div>
-          <div className="flex items-center space-x-2">
-            <span className="px-2.5 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-800 uppercase tracking-wider">
-              Document Pipeline
-            </span>
-            <span className="text-slate-400">&bull;</span>
-            <span className="text-xs text-slate-500">SRS v1.2 FR-08, FR-09, FR-10, FR-16</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1">
-            Corpus Document Management
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
+            Document Management
           </h1>
-          <p className="text-sm text-slate-600 mt-0.5">
-            Upload institutional policy files, extract text, synchronize Qdrant & BM25 indices, and manage corpus versioning.
+          <p className="text-xs sm:text-sm text-slate-600 mt-1">
+            Upload institutional policy files, syllabi, and guidelines.
           </p>
         </div>
 

@@ -1,3 +1,7 @@
+/**
+ * Redis Cache Analytics Component (Administrator Only)
+ * Visualizes live cache telemetry, hits, misses, hit rates, and avoided LLM calls.
+ */
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 
@@ -7,6 +11,9 @@ export const CacheAnalytics = ({ onNavigate }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  /**
+   * Fetches real-time cache performance metrics from the backend.
+   */
   const fetchMetrics = async () => {
     setLoading(true);
     setError(null);
@@ -52,18 +59,11 @@ export const CacheAnalytics = ({ onNavigate }) => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-6 border-b border-slate-200 gap-4">
         <div>
-          <div className="flex items-center space-x-2">
-            <span className="px-2.5 py-0.5 rounded text-xs font-semibold bg-red-100 text-red-800 uppercase tracking-wider">
-              Redis Telemetry
-            </span>
-            <span className="text-slate-400">&bull;</span>
-            <span className="text-xs text-slate-500">SRS v1.2 FR-21, FR-22, FR-23</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1">
-            Redis Cache & Performance Analytics
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
+            Cache Analytics
           </h1>
-          <p className="text-sm text-slate-600 mt-0.5">
-            Monitor real-time semantic answer caching, hit-vs-miss telemetry, and avoided external LLM inference overhead.
+          <p className="text-xs sm:text-sm text-slate-600 mt-1">
+            Query performance, cache hits, and response telemetry.
           </p>
         </div>
 
@@ -75,7 +75,7 @@ export const CacheAnalytics = ({ onNavigate }) => {
           <svg className={`w-3.5 h-3.5 mr-1.5 ${loading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
-          Refresh Live Metrics
+          Refresh Metrics
         </button>
       </div>
 
@@ -207,28 +207,28 @@ export const CacheAnalytics = ({ onNavigate }) => {
 
         {/* Cache Invalidation & Architecture Rules */}
         <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-          <h2 className="text-base font-bold text-slate-900">Redis Architecture & Invalidation (SRS v1.2)</h2>
-          <p className="text-xs text-slate-500 mb-4">Underlying mechanisms guaranteeing strict policy compliance</p>
+          <h2 className="text-base font-bold text-slate-900">Cache Architecture & Freshness</h2>
+          <p className="text-xs text-slate-500 mb-4">Core policies governing query caching and corpus synchronization</p>
 
           <div className="space-y-3 text-xs text-slate-700">
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-start space-x-2.5">
               <span className="font-bold text-blue-600 mt-0.5">&bull;</span>
               <div>
-                <strong>Scope-Isolated Keys:</strong> Cache keys combine knowledge-base version, user role scope (`public` vs `internal`), and normalized question hash.
+                <strong>Scope-Isolated Keys:</strong> Cache entries are partitioned by access permission and user role to prevent unauthorized data exposure.
               </div>
             </div>
 
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-start space-x-2.5">
               <span className="font-bold text-blue-600 mt-0.5">&bull;</span>
               <div>
-                <strong>Knowledge Base Invalidation:</strong> Whenever an admin uploads a new document, the system automatically invalidates outdated Redis entries to eliminate policy staleness.
+                <strong>Automatic Invalidation:</strong> Whenever new documents are uploaded or updated, cached responses are cleared to prevent outdated answers.
               </div>
             </div>
 
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-start space-x-2.5">
               <span className="font-bold text-blue-600 mt-0.5">&bull;</span>
               <div>
-                <strong>Persistence Parity:</strong> Even on cache hits, every question-and-answer interaction is faithfully persisted to MySQL with `is_cache_hit=True` for auditing.
+                <strong>Full Persistence:</strong> All student questions and responses are logged and persisted for auditing and review.
               </div>
             </div>
           </div>
