@@ -1,13 +1,6 @@
-"""
-CampusMind AI - Grounded Generation Service
-Produces strictly grounded, cited answers using retrieved document chunks and the configured LLM service.
+"""CampusMind AI - Grounded Generation Service.
 
-Core Principles:
-1. Grounded strictly in supplied context; documents are treated as untrusted data, not instructions.
-2. Direct inline source citations [1], [2] referencing specific retrieved evidence chunks.
-3. Explicit acknowledgment when retrieved documents lack sufficient evidence to answer the user's question.
-4. Empty retrieval results are handled immediately without invoking external LLM APIs.
-5. No hallucinated citations, document names, or page numbers.
+Generates grounded answers with verified source citations using retrieved document chunks.
 """
 
 import re

@@ -1,14 +1,6 @@
-"""
-CampusMind AI - RAG Orchestration Service
-Orchestrates the complete Retrieval-Augmented Generation pipeline:
-1. Question normalization and deterministic cache key check via RedisCacheService.
-2. Immediate short-circuit return on cache hit (skips embedding, retrieval, and LLM).
-3. On cache miss:
-   - Computes query embedding via EmbeddingService.
-   - Executes hybrid retrieval (BM25 + Qdrant Cosine) via HybridRetrievalService.
-   - Generates cited, grounded answer via GenerationService.
-4. Caches only successful, sufficiently grounded answers into Redis.
-5. Handles document knowledge-base invalidation cleanly.
+"""CampusMind AI - RAG Orchestration Service.
+
+Coordinates cache lookup, query embedding, hybrid retrieval, and grounded generation.
 """
 
 import logging

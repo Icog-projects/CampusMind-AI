@@ -69,8 +69,8 @@ class ChunkingService:
 
     def __init__(
         self,
-        default_chunk_size_tokens: int = 500,
-        default_chunk_overlap_tokens: int = 75,
+        default_chunk_size_tokens: int = 400,
+        default_chunk_overlap_tokens: int = 50,
         chars_per_token_estimate: float = 4.0,
         embedding_service: Optional[EmbeddingService] = None,
         default_similarity_threshold: float = 0.65,
@@ -79,10 +79,10 @@ class ChunkingService:
         Initializes the ChunkingService.
 
         Args:
-            default_chunk_size_tokens: Target chunk size in tokens (default ~500 tokens).
-            default_chunk_overlap_tokens: Overlap in tokens (default ~75 tokens).
+            default_chunk_size_tokens: Target chunk size in tokens (default 400 tokens, safely within the 512 embedding limit).
+            default_chunk_overlap_tokens: Overlap in tokens (default 50 tokens).
             chars_per_token_estimate: Average characters per token (~4.0 in English).
-            embedding_service: Optional EmbeddingService instance for semantic chunking.
+            embedding_service: Optional EmbeddingService instance for semantic chunking and token counting.
             default_similarity_threshold: Cosine similarity cutoff for semantic boundaries (default 0.65).
         """
         self.default_chunk_size_tokens = default_chunk_size_tokens
@@ -162,7 +162,13 @@ class ChunkingService:
         if not pages:
             return []
 
-        token_len_func = length_function or approximate_tokens_from_words
+        # Use tokenizer token counting when embedding_service is available, or fallback to word-based approximation
+        if length_function is not None:
+            token_len_func = length_function
+        elif self._embedding_service is not None:
+            token_len_func = self._embedding_service.count_tokens
+        else:
+            token_len_func = approximate_tokens_from_words
 
         splitter = RecursiveCharacterTextSplitter(
             chunk_size=target_tokens,

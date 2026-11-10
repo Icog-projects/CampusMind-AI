@@ -1,14 +1,6 @@
-"""
-CampusMind AI - Embedding Service
-Generates dense 384-dimensional normalized vector embeddings using BAAI/bge-small-en-v1.5.
-Supports:
-- Singleton / Lazy model loading (loaded once and reused across requests)
-- Single text embedding
-- Batch document chunk embedding with metadata preservation
-- Query embedding
-- Configurable batch size
-- Sequence length validation against the 512-token model limit
-- CPU compatibility and independence from storage/database layers
+"""CampusMind AI - Embedding Service.
+
+Generates dense vector embeddings using the configured sentence-transformer model.
 """
 
 import logging

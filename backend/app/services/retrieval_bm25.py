@@ -1,13 +1,6 @@
-"""
-CampusMind AI - BM25 Keyword Retrieval Service
-Provides keyword-based search over document chunks using the rank-bm25 Okapi BM25 implementation.
+"""CampusMind AI - BM25 Retrieval Service.
 
-Features:
-- Consistent text tokenization for indexing and querying.
-- Full preservation of Chunk objects and provenance metadata.
-- Rebuilding the BM25 index when documents or chunks change.
-- Handling empty queries, empty indexes, duplicate chunks, and invalid top_k.
-- Independence from FastAPI routes and database drivers.
+Provides Okapi BM25 keyword search and indexing over document chunks.
 """
 
 import re

@@ -1,16 +1,6 @@
-"""
-CampusMind AI - Qdrant Vector Store Service
-Handles dense vector storage and cosine similarity retrieval for document chunks.
+"""CampusMind AI - Vector Store Service.
 
-Key capabilities:
-- Configurable client: in-memory (":memory:") by default or remote server via QDRANT_URL / QDRANT_API_KEY.
-- 384-dimensional vector collection with COSINE distance metric.
-- Collection initialization and existence verification.
-- Batch upsert of EmbeddedChunk objects with complete metadata payloads.
-- Stable UUID generation from chunkId for Qdrant point IDs.
-- Dense vector similarity search returning ScoredChunk with retrieval_method='vector'.
-- Document deletion by documentId using payload filters.
-- Robust handling of empty inputs, dimension mismatches, and connection errors.
+Manages dense vector storage, payload indexing, and similarity retrieval in Qdrant.
 """
 
 import os

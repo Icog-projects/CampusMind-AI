@@ -1,18 +1,6 @@
-"""
-CampusMind AI - Redis Answer Cache Service
-Provides high-performance, deterministic caching of grounded RAG answers.
+"""CampusMind AI - Redis Answer Cache Service.
 
-Cache Key Design:
-    {namespace}:{kb_version}:{scope}:{sha256(normalized_question)}
-    Example:
-    campusmind:answer:v1:public:8a5f3...4b1
-
-Key Features:
-- Deterministic key generation using SHA-256 over normalized question text.
-- Full JSON serialization of GroundedAnswer (including source citations & metadata).
-- Configurable TTL (default: 1800s / 30 mins).
-- Resilient failure modes: If Redis is unavailable or fails, gracefully falls back to None without raising exceptions.
-- Knowledge-base versioning support: Modifying or updating the KB version instantly invalidates stale answers across the entire version scope.
+Provides deterministic caching and invalidation of grounded answers using Redis.
 """
 
 import os

@@ -1,22 +1,6 @@
-"""
-CampusMind AI - Hybrid Retrieval Service (Reciprocal Rank Fusion - RRF)
-Combines BM25 lexical keyword search and Qdrant dense vector search using RRF.
+"""CampusMind AI - Hybrid Retrieval Service.
 
-RRF Formula:
-    RRF_score(d) = Σ [ 1 / (k + rank(d)) ]
-
-where:
-- rank(d) is the 1-based rank position of document chunk d in each retrieval result list.
-- k is a smoothing constant that dampens the influence of high-ranking outliers (default: 60).
-
-Key features:
-- Merges candidate results from BM25 and Qdrant vector retrieval.
-- De-duplicates based on stable chunkId / chunk_id identity.
-- Retains chunks found in either or both search modalities.
-- Preserves full chunk content and metadata.
-- Applies document-level filtering (filter_document_id) across both search services.
-- Returns results using the ScoredChunk schema with retrieval_method="hybrid".
-- Gracefully handles empty results, service errors, and invalid inputs.
+Fuses lexical BM25 and dense vector search results using Reciprocal Rank Fusion (RRF).
 """
 
 import logging
