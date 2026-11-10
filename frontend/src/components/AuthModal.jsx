@@ -39,7 +39,11 @@ export const AuthModal = ({ mode, isOpen, onClose, onSwitchMode, onSuccess }) =>
       setError('Please provide a valid university email address.');
       return;
     }
-    if (!password || password.length < 6) {
+    if (!password) {
+      setError('Please enter your password.');
+      return;
+    }
+    if (!isLogin && password.length < 6) {
       setError('Password must be at least 6 characters long.');
       return;
     }
@@ -55,14 +59,14 @@ export const AuthModal = ({ mode, isOpen, onClose, onSwitchMode, onSuccess }) =>
           body: JSON.stringify({ email: cleanEmail, password }),
         });
 
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         if (!res.ok) {
           throw new Error(data.detail || 'Invalid email or password.');
         }
 
         login(data.access_token, data.user);
         resetForm();
-        onSuccess();
+        onSuccess(data.user);
       } else {
         // Registration flow - strictly creates student account
         const cleanName = name.trim();
@@ -81,7 +85,7 @@ export const AuthModal = ({ mode, isOpen, onClose, onSwitchMode, onSuccess }) =>
           }),
         });
 
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         if (!res.ok) {
           throw new Error(data.detail || 'Registration failed. Please check your details.');
         }
@@ -92,11 +96,11 @@ export const AuthModal = ({ mode, isOpen, onClose, onSwitchMode, onSuccess }) =>
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: cleanEmail, password }),
         });
-        const loginData = await loginRes.json();
+        const loginData = await loginRes.json().catch(() => ({}));
         if (loginRes.ok) {
           login(loginData.access_token, loginData.user);
           resetForm();
-          onSuccess();
+          onSuccess(loginData.user);
         } else {
           // If auto-login fails, redirect user to login tab with clear message
           handleSwitch('login');
