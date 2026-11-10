@@ -393,6 +393,29 @@ def ask_question(
 
 
 @router.get(
+    "/chat/sessions",
+    summary="List chat sessions for the authenticated user [Authenticated]",
+    tags=["Chat"],
+)
+def list_chat_sessions(
+    current_user: UserModel = Depends(require_authenticated_user),
+    db: Session = Depends(get_db_session),
+):
+    """Lists conversation sessions belonging to the current user."""
+    chat_repo = ChatRepository(db)
+    sessions = chat_repo.list_sessions_for_user(current_user.id)
+    return [
+        {
+            "id": s.id,
+            "title": s.title,
+            "created_at": s.created_at,
+            "updated_at": s.updated_at,
+        }
+        for s in sessions
+    ]
+
+
+@router.get(
     "/chat/history/{session_id}",
     summary="Retrieve chat messages for a session [Authenticated]",
     tags=["Chat"],

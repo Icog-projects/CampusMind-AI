@@ -2,11 +2,16 @@ import React, { useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Navbar } from './components/Navbar';
 import { HomePage } from './components/HomePage';
+import { AdminDashboard } from './components/AdminDashboard';
+import { DocumentManagement } from './components/DocumentManagement';
+import { CacheAnalytics } from './components/CacheAnalytics';
+import { ChatPage } from './components/ChatPage';
 import { AuthModal } from './components/AuthModal';
 
 function MainApp() {
   const { isAuthenticated, user, loading } = useAuth();
-  const [currentView, setCurrentView] = useState('home');
+  const isAdmin = user?.role === 'admin';
+  const [currentView, setCurrentView] = useState(() => (isAdmin ? 'dashboard' : 'home'));
   const [authModal, setAuthModal] = useState({ isOpen: false, mode: 'login' });
 
   const handleNavigate = (view) => {
@@ -26,13 +31,32 @@ function MainApp() {
       setCurrentView('chat');
       return;
     }
+
+    // Role-based route guard for administrative pages (SRS v1.2 Section 3.1)
+    const adminViews = ['dashboard', 'documents', 'cache-analytics'];
+    if (adminViews.includes(view)) {
+      if (!isAuthenticated) {
+        setAuthModal({ isOpen: true, mode: 'login' });
+        return;
+      }
+      if (!isAdmin) {
+        // Students/staff are not authorized to view admin pages
+        setCurrentView('home');
+        return;
+      }
+    }
+
     setCurrentView(view);
   };
 
   const handleAuthSuccess = (authenticatedUser) => {
     setAuthModal({ isOpen: false, mode: 'login' });
-    // If admin logs in, remain on home or view appropriately with updated role
-    setCurrentView('home');
+    // Per SRS v1.2 Section 3.1: Admins are directed to Admin Dashboard by default; students to AI Chat
+    if (authenticatedUser?.role === 'admin') {
+      setCurrentView('dashboard');
+    } else {
+      setCurrentView('chat');
+    }
   };
 
   if (loading) {
@@ -51,32 +75,82 @@ function MainApp() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex flex-col">
-      <Navbar onNavigate={handleNavigate} />
+      <Navbar currentView={currentView} onNavigate={handleNavigate} />
 
       <main className="flex-1">
+        {/* Public Home Page */}
         {currentView === 'home' && <HomePage onNavigate={handleNavigate} />}
 
+        {/* Functional AI Chat Interface (SRS v1.2 Section 3, FR-05, FR-06, FR-19) */}
         {currentView === 'chat' && (
-          <div className="max-w-4xl mx-auto px-4 py-16 text-center">
-            <div className="p-8 bg-white rounded-2xl shadow-sm border border-slate-200">
-              <div className="w-12 h-12 bg-blue-100 text-blue-700 rounded-xl flex items-center justify-center mx-auto mb-4">
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                </svg>
-              </div>
-              <h2 className="text-2xl font-bold text-slate-900 mb-2">CampusMind AI Chat Interface</h2>
-              <p className="text-slate-600 mb-6 text-sm">
-                Authenticated session for <strong className="text-slate-800">{user?.name}</strong> ({user?.role}).
-                The interactive chat workspace will be fully implemented in the upcoming chat stage.
-              </p>
+          isAuthenticated ? (
+            <ChatPage onNavigate={handleNavigate} />
+          ) : (
+            <div className="max-w-md mx-auto my-16 p-6 bg-white rounded-2xl border border-slate-200 text-center">
+              <h2 className="text-lg font-bold text-slate-900">Authentication Required</h2>
+              <p className="text-xs text-slate-600 mt-2">Please sign in to access the verified academic chat assistant.</p>
               <button
-                onClick={() => setCurrentView('home')}
-                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold transition-colors"
+                onClick={() => handleNavigate('login')}
+                className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg shadow-sm"
               >
-                &larr; Return to Home Page
+                Sign In
               </button>
             </div>
-          </div>
+          )
+        )}
+
+        {/* Admin Dashboard */}
+        {currentView === 'dashboard' && (
+          isAdmin ? (
+            <AdminDashboard onNavigate={handleNavigate} />
+          ) : (
+            <div className="max-w-md mx-auto my-16 p-6 bg-white rounded-2xl border border-red-200 text-center">
+              <h2 className="text-lg font-bold text-red-700">Access Restricted</h2>
+              <p className="text-xs text-slate-600 mt-2">Administrator privileges required to access the dashboard.</p>
+              <button
+                onClick={() => setCurrentView('home')}
+                className="mt-4 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg"
+              >
+                Return to Home
+              </button>
+            </div>
+          )
+        )}
+
+        {/* Document Management */}
+        {currentView === 'documents' && (
+          isAdmin ? (
+            <DocumentManagement onNavigate={handleNavigate} />
+          ) : (
+            <div className="max-w-md mx-auto my-16 p-6 bg-white rounded-2xl border border-red-200 text-center">
+              <h2 className="text-lg font-bold text-red-700">Access Restricted</h2>
+              <p className="text-xs text-slate-600 mt-2">Administrator privileges required to manage documents.</p>
+              <button
+                onClick={() => setCurrentView('home')}
+                className="mt-4 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg"
+              >
+                Return to Home
+              </button>
+            </div>
+          )
+        )}
+
+        {/* Redis Cache Analytics */}
+        {currentView === 'cache-analytics' && (
+          isAdmin ? (
+            <CacheAnalytics onNavigate={handleNavigate} />
+          ) : (
+            <div className="max-w-md mx-auto my-16 p-6 bg-white rounded-2xl border border-red-200 text-center">
+              <h2 className="text-lg font-bold text-red-700">Access Restricted</h2>
+              <p className="text-xs text-slate-600 mt-2">Administrator privileges required to view cache telemetry.</p>
+              <button
+                onClick={() => setCurrentView('home')}
+                className="mt-4 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg"
+              >
+                Return to Home
+              </button>
+            </div>
+          )
         )}
       </main>
 
