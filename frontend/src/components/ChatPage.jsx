@@ -324,11 +324,14 @@ export const ChatPage = ({ onNavigate }) => {
                       : 'bg-white text-slate-800 border border-slate-200 shadow-2xs rounded-bl-xs'
                   }`}
                 >
-                  {/* Clean Cache Badge */}
+                  {/* Clean, Subtle Cached Badge */}
                   {!isUser && msg.is_cache_hit && (
-                    <div className="mb-2">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-                        ⚡ Cached Answer
+                    <div className="mb-2 flex items-center">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200 shadow-2xs">
+                        <svg className="w-2.5 h-2.5 mr-1 text-emerald-600" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                        Cached
                       </span>
                     </div>
                   )}

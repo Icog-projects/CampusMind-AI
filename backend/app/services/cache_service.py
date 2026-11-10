@@ -1,17 +1,19 @@
 """CampusMind AI - Redis Answer Cache Service.
 
-Provides deterministic caching and invalidation of grounded answers using Redis.
+Provides deterministic caching, TTL expiration, and configurable eviction policies (LRU/LFU).
 
 Responsibilities:
 1. normalize_question(): Standardizes question strings by lowercasing and trimming whitespace.
 2. generate_cache_key(): Builds a deterministic SHA-256 cache key from normalized query, version, and scope.
 Class RedisCacheService:
-3. RedisCacheService.__init__(): Initializes cache configuration and connection settings.
+3. RedisCacheService.__init__(): Initializes cache configuration, TTL, and memory eviction settings.
 4. RedisCacheService.client(): Connects or returns active Redis client instance.
-5. RedisCacheService.get_answer(): Retrieves cached grounded answer if present.
-6. RedisCacheService.set_answer(): Stores serialized grounded answer with TTL into Redis.
-7. RedisCacheService.update_kb_version(): Updates knowledge-base version to invalidate prior cache entries.
-8. RedisCacheService.delete_scope_answer(): Deletes specific cached answer entry by query and scope.
+5. RedisCacheService.configure_eviction_policy(): Configures maxmemory and eviction policy (allkeys-lru or allkeys-lfu).
+6. RedisCacheService.get_cache_info(): Retrieves live Redis memory stats, active policy, and configured limits.
+7. RedisCacheService.get_answer(): Retrieves cached grounded answer if present.
+8. RedisCacheService.set_answer(): Stores serialized grounded answer with TTL into Redis.
+9. RedisCacheService.update_kb_version(): Updates knowledge-base version to invalidate prior cache entries.
+10. RedisCacheService.delete_scope_answer(): Deletes specific cached answer entry by query and scope.
 """
 
 import os
@@ -31,6 +33,8 @@ DEFAULT_REDIS_NAMESPACE = "campusmind:answer"
 DEFAULT_CACHE_TTL = 1800  # 30 minutes
 DEFAULT_KB_VERSION = "v1"
 DEFAULT_ACCESS_SCOPE = "public"
+DEFAULT_MAXMEMORY = "100mb"
+DEFAULT_EVICTION_POLICY = "allkeys-lru"
 
 
 # Normalizes question text for consistent cache key generation.
@@ -59,7 +63,7 @@ def generate_cache_key(
 # Manages caching and retrieval of GroundedAnswer objects in Redis.
 class RedisCacheService:
 
-    # Initializes cache configuration and connection settings.
+    # Initializes cache configuration, TTL, and memory eviction settings.
     def __init__(
         self,
         redis_url: Optional[str] = None,
@@ -67,6 +71,8 @@ class RedisCacheService:
         kb_version: str = DEFAULT_KB_VERSION,
         namespace: str = DEFAULT_REDIS_NAMESPACE,
         client: Optional[Any] = None,
+        maxmemory: Optional[str] = None,
+        eviction_policy: Optional[str] = None,
     ):
         self.redis_url = redis_url or os.getenv("REDIS_URL", "redis://localhost:6379/0")
         
@@ -82,10 +88,16 @@ class RedisCacheService:
         self._client = client
         self._is_connected: Optional[bool] = None
 
+        self.maxmemory = maxmemory or os.getenv("REDIS_MAXMEMORY", DEFAULT_MAXMEMORY)
+        self.eviction_policy = eviction_policy or os.getenv("REDIS_EVICTION_POLICY", DEFAULT_EVICTION_POLICY)
+        self._configured_policy = False
+
     # Lazy-initializes or returns the active Redis client connection.
     @property
     def client(self) -> Optional[Any]:
         if self._client is not None:
+            if not self._configured_policy and hasattr(self._client, "config_set"):
+                self.configure_eviction_policy(policy=self.eviction_policy, maxmemory=self.maxmemory)
             return self._client
 
         try:
@@ -96,10 +108,70 @@ class RedisCacheService:
                 socket_connect_timeout=2.0,
                 socket_timeout=2.0,
             )
+            self.configure_eviction_policy(policy=self.eviction_policy, maxmemory=self.maxmemory)
             return self._client
         except Exception as e:
             logger.warning("Failed to initialize Redis client (%s): %s", self.redis_url, e)
             return None
+
+    # Configures Redis maxmemory limit and eviction policy (allkeys-lru or allkeys-lfu).
+    def configure_eviction_policy(self, policy: str, maxmemory: Optional[str] = None) -> bool:
+        if self._client is None:
+            return False
+
+        clean_policy = policy.strip().lower()
+        if clean_policy not in ["allkeys-lru", "allkeys-lfu", "volatile-lru", "volatile-lfu", "noeviction"]:
+            raise ValueError(f"Unsupported eviction policy: '{policy}'. Supported: allkeys-lru, allkeys-lfu")
+
+        mem = maxmemory or self.maxmemory
+        try:
+            if mem and hasattr(self._client, "config_set"):
+                self._client.config_set("maxmemory", mem)
+            if hasattr(self._client, "config_set"):
+                self._client.config_set("maxmemory-policy", clean_policy)
+            self.eviction_policy = clean_policy
+            self.maxmemory = mem
+            self._configured_policy = True
+            logger.info("Configured Redis maxmemory=%s, policy=%s", mem, clean_policy)
+            return True
+        except Exception as e:
+            logger.warning("Could not set Redis configuration: %s", e)
+            return False
+
+    # Retrieves live Redis memory stats, active policy, and configured limits.
+    def get_cache_info(self) -> Dict[str, Any]:
+        info: Dict[str, Any] = {
+            "ttl_seconds": self.default_ttl,
+            "configured_maxmemory": self.maxmemory,
+            "configured_policy": self.eviction_policy,
+            "connected": False,
+            "used_memory_human": "N/A",
+            "maxmemory_human": "N/A",
+            "live_policy": self.eviction_policy,
+        }
+
+        cli = self.client
+        if cli is None:
+            return info
+
+        try:
+            mem_info = cli.info("memory")
+            info["connected"] = True
+            info["used_memory_human"] = mem_info.get("used_memory_human", "N/A")
+            info["maxmemory_human"] = mem_info.get("maxmemory_human", "N/A")
+            
+            cfg_policy = cli.config_get("maxmemory-policy")
+            if isinstance(cfg_policy, dict):
+                info["live_policy"] = cfg_policy.get("maxmemory-policy", self.eviction_policy)
+            cfg_mem = cli.config_get("maxmemory")
+            if isinstance(cfg_mem, dict) and cfg_mem.get("maxmemory"):
+                val = cfg_mem.get("maxmemory")
+                if val != "0" and info["maxmemory_human"] == "N/A":
+                    info["maxmemory_human"] = f"{int(val) // (1024*1024)}M"
+        except Exception as e:
+            logger.warning("Failed to query Redis memory info: %s", e)
+
+        return info
 
     # Retrieves a cached GroundedAnswer for a question if present and valid.
     def get_answer(

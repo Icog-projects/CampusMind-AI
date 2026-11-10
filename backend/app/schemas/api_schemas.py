@@ -122,13 +122,24 @@ class DependencyStatus(BaseModel):
     details: Optional[str] = None
 
 
-# Live cache statistics per SRS FR-15.
+# Live cache statistics and eviction configuration per SRS FR-15.
 class CacheMetrics(BaseModel):
     hits: int = 0
     misses: int = 0
     total_queries: int = 0
     hit_rate_pct: float = 0.0
     llm_calls_avoided: int = 0
+    ttl_seconds: int = 1800
+    used_memory_human: str = "N/A"
+    maxmemory_human: str = "N/A"
+    configured_policy: str = "allkeys-lru"
+    live_policy: str = "allkeys-lru"
+
+
+# Request to switch active Redis eviction policy.
+class CachePolicyUpdateRequest(BaseModel):
+    policy: str = Field(..., description="Eviction policy: 'allkeys-lru' or 'allkeys-lfu'")
+    maxmemory: Optional[str] = Field(None, description="Optional memory limit override, e.g. '100mb'")
 
 
 # Application health and dependency status.
