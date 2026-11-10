@@ -33,17 +33,13 @@ from sqlalchemy.orm import relationship
 from app.core.database import Base
 
 
+# Generates naive UTC datetime for MySQL DATETIME(6).
 def utc_now():
-    """Generates naive UTC datetime for MySQL DATETIME(6)."""
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
+# Stores registered user accounts, passwords, and permission roles.
 class UserModel(Base):
-    """
-    Stores registered user accounts, passwords, and permission roles.
-    SRS Version 1.2, Section 3.1 & 5.1:
-        id, name, email, password_hash, role, created_at
-    """
     __tablename__ = "users"
 
     id = Column(String(64), primary_key=True, index=True)
@@ -62,12 +58,8 @@ class UserModel(Base):
         return f"<UserModel(id='{self.id}', email='{self.email}', role='{self.role}')>"
 
 
+# Tracks ingested files, extraction state, chunk counts, and KB versions.
 class DocumentModel(Base):
-    """
-    Tracks ingested files, extraction state, chunk counts, and KB versions.
-    SRS Section 9.1:
-        id, filename, file_path, uploader_id if available, upload_date, status, chunk_count, version
-    """
     __tablename__ = "documents"
 
     id = Column(String(64), primary_key=True, index=True)
@@ -90,12 +82,8 @@ class DocumentModel(Base):
         return f"<DocumentModel(id='{self.id}', filename='{self.filename}', status='{self.status}', version='{self.version}')>"
 
 
+# Tracks conversation sessions for users or anonymous sessions.
 class ChatSessionModel(Base):
-    """
-    Tracks conversation sessions for users or anonymous sessions.
-    SRS Section 9.1:
-        id, user_id where authentication is enabled, title, created_at
-    """
     __tablename__ = "chat_sessions"
 
     id = Column(String(64), primary_key=True, index=True)
@@ -121,12 +109,8 @@ class ChatSessionModel(Base):
         return f"<ChatSessionModel(id='{self.id}', user_id='{self.user_id}', title='{self.title}')>"
 
 
+# Stores individual messages within a chat session.
 class MessageModel(Base):
-    """
-    Stores individual messages within a chat session.
-    SRS Section 9.1:
-        id, session_id, role, content, timestamp, source references, cache-hit indicator
-    """
     __tablename__ = "messages"
 
     id = Column(String(64), primary_key=True, index=True)

@@ -31,29 +31,23 @@ DEFAULT_MAX_FILE_SIZE = 25 * 1024 * 1024  # 25 MB default limit
 SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".txt"}
 
 
+# Base exception for document extraction failures.
 class DocumentExtractionError(Exception):
-    """Base exception for document extraction failures."""
     pass
 
 
+# Raised when an unsupported file extension or format is supplied.
 class UnsupportedFileTypeError(DocumentExtractionError):
-    """Raised when an unsupported file extension or format is supplied."""
     pass
 
 
+# Raised when file validation (size, content, empty check) fails.
 class FileValidationError(DocumentExtractionError):
-    """Raised when file validation (size, content, empty check) fails."""
     pass
 
 
+# Cleans and normalizes extracted text: - Strips null bytes and control characters (excluding standard whitespace) - Normalizes Windows CRLF to LF - Collapses multiple blank lines while preserving paragraph boundaries - Strips trailing/leading whitespace.
 def clean_text(raw_text: str) -> str:
-    """
-    Cleans and normalizes extracted text:
-    - Strips null bytes and control characters (excluding standard whitespace)
-    - Normalizes Windows CRLF to LF
-    - Collapses multiple blank lines while preserving paragraph boundaries
-    - Strips trailing/leading whitespace
-    """
     if not raw_text:
         return ""
     # Replace null characters with a space
@@ -72,31 +66,19 @@ def clean_text(raw_text: str) -> str:
     return cleaned
 
 
+# Extracts structured pages and text from PDF, DOCX, and TXT files.
 class DocumentExtractor:
-    """
-    Extracts structured pages and text from PDF, DOCX, and TXT files.
-    """
 
+    # Initializes DocumentExtractor.
     def __init__(self, max_file_size_bytes: int = DEFAULT_MAX_FILE_SIZE):
-        """
-        Initializes DocumentExtractor.
-
-        Args:
-            max_file_size_bytes: Maximum allowed file size in bytes (defaults to 25MB).
-        """
         self.max_file_size_bytes = max_file_size_bytes
 
+    # Reads input into raw bytes and validates file size, non-empty content, and extension.
     def _read_and_validate_bytes(
         self,
         file_input: Union[str, bytes, BinaryIO],
         filename: Optional[str] = None,
     ) -> tuple[bytes, str]:
-        """
-        Reads input into raw bytes and validates file size, non-empty content, and extension.
-
-        Returns:
-            Tuple of (raw_bytes, normalized_extension)
-        """
         raw_bytes: bytes = b""
         resolved_filename = filename or ""
 
@@ -148,23 +130,13 @@ class DocumentExtractor:
 
         return raw_bytes, ext
 
+    # Extracts clean text and pages from a PDF, DOCX, or TXT file.
     def extract_document(
         self,
         file_input: Union[str, bytes, BinaryIO],
         filename: str,
         document_id: Optional[str] = None,
     ) -> ExtractedDocument:
-        """
-        Extracts clean text and pages from a PDF, DOCX, or TXT file.
-
-        Args:
-            file_input: File path, bytes, or binary stream.
-            filename: Document filename (e.g. 'CourseHandbook.pdf').
-            document_id: Optional document ID (generates UUID if omitted).
-
-        Returns:
-            ExtractedDocument containing metadata and list of ExtractedPage objects.
-        """
         raw_bytes, ext = self._read_and_validate_bytes(file_input, filename=filename)
         doc_id = document_id or str(uuid.uuid4())
 
@@ -191,8 +163,8 @@ class DocumentExtractor:
             logger.error("Failed to extract document '%s': %s", filename, e)
             raise DocumentExtractionError(f"Extraction error for '{filename}': {str(e)}") from e
 
+    # Extracts text from PDF preserving 1-based page numbers via PyMuPDF.
     def _extract_pdf(self, raw_bytes: bytes, filename: str) -> tuple[List[ExtractedPage], dict]:
-        """Extracts text from PDF preserving 1-based page numbers via PyMuPDF."""
         try:
             pdf_doc = fitz.open(stream=raw_bytes, filetype="pdf")
         except Exception as e:
@@ -221,13 +193,8 @@ class DocumentExtractor:
         }
         return pages, metadata
 
+    # Extracts text from DOCX using python-docx.
     def _extract_docx(self, raw_bytes: bytes, filename: str) -> tuple[List[ExtractedPage], dict]:
-        """
-        Extracts text from DOCX using python-docx.
-        Note: DOCX is a flow-format document that does not store true physical page layout.
-        We track explicit hard page breaks (w:br type='page') and section breaks,
-        defaulting to sequential section/page indexing without claiming synthetic pagination.
-        """
         try:
             docx_file = io.BytesIO(raw_bytes)
             doc = docx.Document(docx_file)
@@ -291,8 +258,8 @@ class DocumentExtractor:
         }
         return pages, metadata
 
+    # Extracts text from TXT files, trying UTF-8, then CP1252/Latin-1 fallbacks.
     def _extract_txt(self, raw_bytes: bytes, filename: str) -> tuple[List[ExtractedPage], dict]:
-        """Extracts text from TXT files, trying UTF-8, then CP1252/Latin-1 fallbacks."""
         text = ""
         encoding_used = "utf-8"
         for enc in ["utf-8", "utf-8-sig", "cp1252", "latin-1"]:

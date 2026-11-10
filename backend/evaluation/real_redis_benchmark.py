@@ -27,10 +27,8 @@ logger = logging.getLogger(__name__)
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
 
+# Executes a latency and cache-hit benchmark directly against live Redis.
 def run_real_redis_benchmark(output_dir: str = "evaluation/results") -> Dict[str, Any]:
-    """
-    Executes a latency and cache-hit benchmark directly against live Redis.
-    """
     # 1. Connect and verify Redis
     r = redis.Redis.from_url(REDIS_URL, decode_responses=True, socket_connect_timeout=2.0)
     try:

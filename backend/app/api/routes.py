@@ -102,16 +102,11 @@ def get_rag_service() -> RAGService:
     summary="Register a new user account (Student or Staff)",
     tags=["Authentication"],
 )
+# Registers a new account.
 def register(
     req: UserRegisterRequest,
     db: Session = Depends(get_db_session),
 ):
-    """
-    Registers a new account.
-    - Hashes password securely via bcrypt.
-    - Prevents public registration of 'admin' role; defaults to 'student'.
-    - Rejects duplicate email addresses with 400 Bad Request.
-    """
     user_repo = UserRepository(db)
 
     # 1. Check for existing email
@@ -152,14 +147,11 @@ def register(
     summary="User login and JWT access token issuance",
     tags=["Authentication"],
 )
+# Authenticates user with email and password.
 def login(
     req: UserLoginRequest,
     db: Session = Depends(get_db_session),
 ):
-    """
-    Authenticates user with email and password.
-    Returns signed JWT token with user id and role.
-    """
     user_repo = UserRepository(db)
     user = user_repo.get_by_email(req.email)
 
@@ -189,10 +181,10 @@ def login(
     summary="Get current user profile",
     tags=["Authentication"],
 )
+# Returns the authenticated user's profile.
 def get_me(
     current_user: UserModel = Depends(require_authenticated_user),
 ):
-    """Returns the authenticated user's profile."""
     return current_user
 
 
@@ -287,6 +279,7 @@ async def upload_document(
     summary="List processed documents [Admin Only]",
     tags=["Documents"],
 )
+# Retrieves document records from MySQL (Admin only).
 def list_documents(
     status_filter: Optional[str] = None,
     version: Optional[str] = None,
@@ -295,7 +288,6 @@ def list_documents(
     current_user: UserModel = Depends(require_admin),
     db: Session = Depends(get_db_session),
 ):
-    """Retrieves document records from MySQL (Admin only)."""
     repo = DocumentRepository(db)
     docs = repo.list_documents(
         status=status_filter,
@@ -317,19 +309,13 @@ def list_documents(
     summary="Submit a query and receive a grounded answer with citations [Authenticated]",
     tags=["Chat"],
 )
+# Submits a user question to CampusMind AI.
 def ask_question(
     req: ChatAskRequest,
     current_user: UserModel = Depends(require_authenticated_user),
     db: Session = Depends(get_db_session),
     rag: RAGService = Depends(get_rag_service),
 ):
-    """
-    Submits a user question to CampusMind AI.
-    - Requires authenticated student, staff, or admin.
-    - Associates conversation and messages with current_user.id.
-    - Verifies session ownership if session_id is provided.
-    - Enforces safe cache-key scoping consistent with user role (e.g. public vs staff).
-    """
     global _cache_hits_counter, _cache_misses_counter
 
     if not req.question or not req.question.strip():
@@ -397,11 +383,11 @@ def ask_question(
     summary="List chat sessions for the authenticated user [Authenticated]",
     tags=["Chat"],
 )
+# Lists conversation sessions belonging to the current user.
 def list_chat_sessions(
     current_user: UserModel = Depends(require_authenticated_user),
     db: Session = Depends(get_db_session),
 ):
-    """Lists conversation sessions belonging to the current user."""
     chat_repo = ChatRepository(db)
     sessions = chat_repo.list_sessions_for_user(current_user.id)
     return [
@@ -420,15 +406,12 @@ def list_chat_sessions(
     summary="Retrieve chat messages for a session [Authenticated]",
     tags=["Chat"],
 )
+# Retrieves chronological messages for a chat session.
 def get_chat_history(
     session_id: str,
     current_user: UserModel = Depends(require_authenticated_user),
     db: Session = Depends(get_db_session),
 ):
-    """
-    Retrieves chronological messages for a chat session.
-    Verifies that the session belongs to current_user (or user is admin).
-    """
     chat_repo = ChatRepository(db)
     session_obj = chat_repo.get_session(session_id)
     if not session_obj:
@@ -468,14 +451,11 @@ def get_chat_history(
     summary="Application health check and dependency status (Public)",
     tags=["System"],
 )
+# Checks operational status of MySQL, Redis, and Qdrant dependencies.
 def health_check(
     db: Session = Depends(get_db_session),
     rag: RAGService = Depends(get_rag_service),
 ):
-    """
-    Checks operational status of MySQL, Redis, and Qdrant dependencies.
-    Remains public per requirement.
-    """
     dependencies: dict[str, DependencyStatus] = {}
 
     # 1. MySQL Health
@@ -532,10 +512,10 @@ def health_check(
     summary="Live Redis cache metrics [Admin Only]",
     tags=["System"],
 )
+# Returns live cache metrics: hits, misses, hit rate, and avoided LLM calls (Admin only).
 def get_cache_metrics(
     current_user: UserModel = Depends(require_admin),
 ):
-    """Returns live cache metrics: hits, misses, hit rate, and avoided LLM calls (Admin only)."""
     total_queries = _cache_hits_counter + _cache_misses_counter
     hit_rate = round((_cache_hits_counter / total_queries * 100.0), 2) if total_queries > 0 else 0.0
 

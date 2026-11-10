@@ -33,23 +33,16 @@ logger = logging.getLogger(__name__)
 ChunkingMethodType = Literal["fixed", "recursive", "semantic"]
 
 
+# Computes an approximate token count based on whitespace-separated words.
 def approximate_tokens_from_words(text: str) -> int:
-    """
-    Computes an approximate token count based on whitespace-separated words.
-    For standard English text, 1 word corresponds to approximately 1.33 tokens.
-    We clearly differentiate this token metric from raw character counts.
-    """
     if not text:
         return 0
     words = len(text.split())
     return max(1, int(words * 1.33))
 
 
+# Splits text into constituent sentences using punctuation boundaries (.
 def split_into_sentences(text: str) -> List[str]:
-    """
-    Splits text into constituent sentences using punctuation boundaries (.!?),
-    preserving sentence clarity while avoiding false positives on abbreviations.
-    """
     if not text or not text.strip():
         return []
     # Match sentences ending with . ! or ? followed by whitespace or end of string
@@ -58,8 +51,8 @@ def split_into_sentences(text: str) -> List[str]:
     return sentences
 
 
+# Computes cosine similarity between two 1D vectors.
 def cosine_similarity(v1: Sequence[float], v2: Sequence[float]) -> float:
-    """Computes cosine similarity between two 1D vectors."""
     a = np.array(v1, dtype=np.float32)
     b = np.array(v2, dtype=np.float32)
     norm_a = np.linalg.norm(a)
@@ -69,11 +62,10 @@ def cosine_similarity(v1: Sequence[float], v2: Sequence[float]) -> float:
     return float(np.dot(a, b) / (norm_a * norm_b))
 
 
+# Unified chunking service supporting Fixed, Recursive, and Semantic chunking.
 class ChunkingService:
-    """
-    Unified chunking service supporting Fixed, Recursive, and Semantic chunking.
-    """
 
+    # Initializes the ChunkingService.
     def __init__(
         self,
         default_chunk_size_tokens: int = 400,
@@ -82,16 +74,6 @@ class ChunkingService:
         embedding_service: Optional[EmbeddingService] = None,
         default_similarity_threshold: float = 0.65,
     ):
-        """
-        Initializes the ChunkingService.
-
-        Args:
-            default_chunk_size_tokens: Target chunk size in tokens (default 400 tokens, safely within the 512 embedding limit).
-            default_chunk_overlap_tokens: Overlap in tokens (default 50 tokens).
-            chars_per_token_estimate: Average characters per token (~4.0 in English).
-            embedding_service: Optional EmbeddingService instance for semantic chunking and token counting.
-            default_similarity_threshold: Cosine similarity cutoff for semantic boundaries (default 0.65).
-        """
         self.default_chunk_size_tokens = default_chunk_size_tokens
         self.default_chunk_overlap_tokens = default_chunk_overlap_tokens
         self.chars_per_token_estimate = chars_per_token_estimate
@@ -99,14 +81,14 @@ class ChunkingService:
         self.default_similarity_threshold = default_similarity_threshold
 
     @property
+    # Lazy-instantiates or returns the embedding service.
     def embedding_service(self) -> EmbeddingService:
-        """Lazy-instantiates or returns the embedding service."""
         if self._embedding_service is None:
             self._embedding_service = EmbeddingService()
         return self._embedding_service
 
+    # Validates chunk sizing and overlap parameters.
     def _validate_config(self, chunk_size: int, chunk_overlap: int):
-        """Validates chunk sizing and overlap parameters."""
         if chunk_size <= 0:
             raise ValueError(f"chunk_size must be positive, got {chunk_size}")
         if chunk_overlap < 0:
@@ -116,11 +98,11 @@ class ChunkingService:
                 f"chunk_overlap ({chunk_overlap}) must be strictly smaller than chunk_size ({chunk_size})"
             )
 
+    # Normalizes input into a list of ExtractedPage objects.
     def _prepare_pages(
         self,
         document_or_text: Union[str, ExtractedDocument, List[ExtractedPage]],
     ) -> List[ExtractedPage]:
-        """Normalizes input into a list of ExtractedPage objects."""
         if isinstance(document_or_text, ExtractedDocument):
             return document_or_text.pages
         elif isinstance(document_or_text, list):
@@ -145,9 +127,6 @@ class ChunkingService:
         separators: Optional[List[str]] = None,
         length_function: Optional[Callable[[str], int]] = None,
     ) -> List[Chunk]:
-        """
-        Performs recursive character chunking using LangChain's RecursiveCharacterTextSplitter.
-        """
         target_tokens = (
             self.default_chunk_size_tokens
             if chunk_size_tokens is None
@@ -226,10 +205,6 @@ class ChunkingService:
         chunk_size_tokens: Optional[int] = None,
         chunk_overlap_tokens: Optional[int] = None,
     ) -> List[Chunk]:
-        """
-        Performs fixed-size chunking with configurable chunk size and overlap (in tokens).
-        Splits text into words/tokens without losing text between chunks, maintaining a sliding window.
-        """
         target_tokens = (
             self.default_chunk_size_tokens
             if chunk_size_tokens is None
@@ -309,15 +284,6 @@ class ChunkingService:
         chunk_overlap_tokens: Optional[int] = None,
         similarity_threshold: Optional[float] = None,
     ) -> List[Chunk]:
-        """
-        Performs genuine semantic chunking:
-        1. Breaks documents into sentences.
-        2. Computes embeddings for individual sentences using EmbeddingService.
-        3. Measures cosine similarity between consecutive sentences.
-        4. Detects topic shifts when similarity falls below similarity_threshold.
-        5. Groups sentences into semantic segments while respecting max chunk_size_tokens.
-        6. Applies configurable sentence overlap across chunk boundaries.
-        """
         target_tokens = (
             self.default_chunk_size_tokens
             if chunk_size_tokens is None
@@ -462,21 +428,6 @@ class ChunkingService:
         chunk_overlap_tokens: Optional[int] = None,
         **kwargs,
     ) -> List[Chunk]:
-        """
-        Unified dispatch interface to perform chunking using the selected method.
-
-        Args:
-            document: Raw text, ExtractedDocument, or List[ExtractedPage].
-            method: 'fixed', 'recursive', or 'semantic'.
-            document_id: Traceability document ID.
-            document_name: Traceability document name.
-            chunk_size_tokens: Target chunk size in tokens.
-            chunk_overlap_tokens: Overlap in tokens.
-            **kwargs: Extra arguments (e.g. similarity_threshold for semantic).
-
-        Returns:
-            List[Chunk] with complete provenance metadata.
-        """
         clean_method = method.lower().strip() if isinstance(method, str) else ""
 
         if clean_method == "recursive":

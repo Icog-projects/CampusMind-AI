@@ -12,16 +12,12 @@ from typing import List, Sequence, Set, Dict, Any
 from app.schemas.chunk import ScoredChunk
 
 
+# Computes Recall@k: Fraction of expected document IDs retrieved in top_k.
 def calculate_recall_at_k(
     retrieved_chunks: Sequence[ScoredChunk],
     expected_doc_ids: Set[str],
     k: int = 5,
 ) -> float:
-    """
-    Computes Recall@k: Fraction of expected document IDs retrieved in top_k.
-    If expected_doc_ids is empty (e.g. unanswerable query), returns 1.0 if no docs retrieved,
-    or 1.0 (not applicable / vacuum truth).
-    """
     if not expected_doc_ids:
         return 1.0  # vacuum truth for negative examples
 
@@ -31,15 +27,12 @@ def calculate_recall_at_k(
     return len(hits) / len(expected_doc_ids)
 
 
+# Computes Mean Reciprocal Rank (MRR): 1 / rank of the first relevant document in top_k.
 def calculate_mrr(
     retrieved_chunks: Sequence[ScoredChunk],
     expected_doc_ids: Set[str],
     k: int = 5,
 ) -> float:
-    """
-    Computes Mean Reciprocal Rank (MRR): 1 / rank of the first relevant document in top_k.
-    Returns 0.0 if no relevant document is found within top_k.
-    """
     if not expected_doc_ids:
         return 1.0
 
@@ -49,20 +42,13 @@ def calculate_mrr(
     return 0.0
 
 
+# Computes cache performance metrics: - Hit rate (%) = hits / (hits + misses) * 100 - Average hit latency (ms) - Average miss latency (ms) - Latency reduction (%) - LLM calls avoided (= hits).
 def calculate_cache_metrics(
     hits: int,
     misses: int,
     hit_latencies: List[float],
     miss_latencies: List[float],
 ) -> Dict[str, Any]:
-    """
-    Computes cache performance metrics:
-    - Hit rate (%) = hits / (hits + misses) * 100
-    - Average hit latency (ms)
-    - Average miss latency (ms)
-    - Latency reduction (%)
-    - LLM calls avoided (= hits)
-    """
     total = hits + misses
     hit_rate = (hits / total * 100.0) if total > 0 else 0.0
 

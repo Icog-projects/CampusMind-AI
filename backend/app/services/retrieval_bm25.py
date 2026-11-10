@@ -25,52 +25,36 @@ from app.schemas.chunk import Chunk, ScoredChunk
 logger = logging.getLogger(__name__)
 
 
+# Standard lowercased alphanumeric tokenizer.
 def default_tokenizer(text: str) -> List[str]:
-    """
-    Standard lowercased alphanumeric tokenizer.
-    Extracts word tokens while stripping punctuation, ensuring
-    query and document terms are matched consistently.
-    """
     if not text:
         return []
     # Match alphanumeric words of length >= 1
     return [token.lower() for token in re.findall(r"\w+", text)]
 
 
+# Provides Okapi BM25 keyword search and indexing over document chunks.
 class BM25RetrievalService:
+
+    # Initializes the BM25 retrieval service and internal corpus storage.
     def __init__(self, tokenizer=None):
-        """
-        Initializes the BM25 retrieval service.
-        
-        Args:
-            tokenizer: Optional custom tokenization function (defaults to default_tokenizer).
-        """
         self.tokenizer = tokenizer or default_tokenizer
         self._chunks: List[Chunk] = []
         self._tokenized_corpus: List[List[str]] = []
         self._bm25: Optional[BM25Okapi] = None
 
+    # Indicates whether the BM25 index is built and ready for search.
     @property
     def is_indexed(self) -> bool:
-        """Indicates whether the BM25 index is built and ready for search."""
         return self._bm25 is not None and len(self._chunks) > 0
 
+    # Returns the total number of indexed chunks.
     @property
     def total_chunks(self) -> int:
-        """Returns the total number of indexed chunks."""
         return len(self._chunks)
 
+    # Builds or rebuilds the BM25 index from the given chunks.
     def build_index(self, chunks: Sequence[Chunk], deduplicate: bool = True) -> int:
-        """
-        Builds or rebuilds the BM25 index from the given chunks.
-        
-        Args:
-            chunks: Sequence of Chunk objects to index.
-            deduplicate: If True, filters out duplicate chunks based on chunk_id or content.
-            
-        Returns:
-            The number of unique chunks successfully indexed.
-        """
         if not chunks:
             self.clear_index()
             return 0
@@ -109,12 +93,13 @@ class BM25RetrievalService:
         logger.info("Successfully built BM25 index with %d chunks.", len(self._chunks))
         return len(self._chunks)
 
+    # Clears the existing index and all associated chunks.
     def clear_index(self):
-        """Clears the existing index and all associated chunks."""
         self._chunks = []
         self._tokenized_corpus = []
         self._bm25 = None
 
+    # Performs BM25 keyword search against the indexed chunks.
     def search(
         self,
         query: str,
@@ -122,18 +107,6 @@ class BM25RetrievalService:
         min_score: float = 0.0,
         filter_document_id: Optional[str] = None,
     ) -> List[ScoredChunk]:
-        """
-        Performs BM25 keyword search against the indexed chunks.
-        
-        Args:
-            query: User search query.
-            top_k: Maximum number of ranked results to return (must be >= 1).
-            min_score: Minimum BM25 score required for inclusion (default 0.0).
-            filter_document_id: Optional documentId filter to restrict results.
-            
-        Returns:
-            List[ScoredChunk] ordered by BM25 relevance score descending.
-        """
         if top_k <= 0:
             raise ValueError(f"top_k must be a positive integer, got {top_k}")
 
@@ -176,23 +149,13 @@ class BM25RetrievalService:
 
         return results[:top_k]
 
+    # Adds new chunks to existing collection and rebuilds index.
     def add_chunks(self, new_chunks: Sequence[Chunk], deduplicate: bool = True) -> int:
-        """
-        Convenience method to add chunks and rebuild the index.
-        """
         combined = list(self._chunks) + list(new_chunks)
         return self.build_index(combined, deduplicate=deduplicate)
 
+    # Removes all chunks associated with a specific documentId and rebuilds the index.
     def remove_document(self, document_id: str) -> int:
-        """
-        Removes all chunks associated with a specific documentId and rebuilds the index.
-        
-        Args:
-            document_id: The documentId to remove.
-            
-        Returns:
-            The number of remaining chunks in the index.
-        """
         if not self.is_indexed:
             return 0
 

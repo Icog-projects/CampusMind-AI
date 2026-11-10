@@ -6,15 +6,15 @@ class ExtractedPage(BaseModel):
     page_number: Optional[int] = None
     text: str
 
+# Represents the raw extraction result from a document.
 class ExtractedDocument(BaseModel):
-    """Represents the raw extraction result from a document."""
     document_id: str
     document_name: str
     pages: List[ExtractedPage] = Field(default_factory=list)
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
+# Traceability metadata for each generated chunk.
 class ChunkMetadata(BaseModel):
-    """Traceability metadata for each generated chunk."""
     model_config = ConfigDict(populate_by_name=True)
 
     document_id: str = Field(..., alias="documentId")
@@ -26,8 +26,8 @@ class ChunkMetadata(BaseModel):
     token_count_approx: Optional[int] = Field(None, alias="tokenCountApprox")
     character_count: int = Field(..., alias="characterCount")
 
+# A processed chunk of text with complete provenance metadata.
 class Chunk(BaseModel):
-    """A processed chunk of text with complete provenance metadata."""
     content: str
     metadata: ChunkMetadata
 
@@ -37,8 +37,8 @@ class Chunk(BaseModel):
             "metadata": self.metadata.model_dump(by_alias=True)
         }
 
+# A processed chunk paired with its 384-dimensional dense vector.
 class EmbeddedChunk(BaseModel):
-    """A processed chunk paired with its 384-dimensional dense vector."""
     chunk: Chunk
     embedding: List[float]
 
@@ -46,15 +46,15 @@ class EmbeddedChunk(BaseModel):
     def vector_dimension(self) -> int:
         return len(self.embedding)
 
+# A chunk paired with its retrieval relevance score and retrieval method.
 class ScoredChunk(BaseModel):
-    """A chunk paired with its retrieval relevance score and retrieval method."""
     chunk: Chunk
     score: float
     retrieval_method: str = "bm25"
 
 
+# Structured citation metadata mapped to an evidence source.
 class SourceCitation(BaseModel):
-    """Structured citation metadata mapped to an evidence source."""
     citation_index: int
     document_id: str
     document_name: str
@@ -64,8 +64,8 @@ class SourceCitation(BaseModel):
     content_snippet: str
 
 
+# Grounded LLM response including generated text, sources, and metadata.
 class GroundedAnswer(BaseModel):
-    """Grounded LLM response including generated text, sources, and metadata."""
     answer: str
     sources: List[SourceCitation] = Field(default_factory=list)
     has_sufficient_context: bool = True

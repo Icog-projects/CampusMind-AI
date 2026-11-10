@@ -31,11 +31,8 @@ DEFAULT_COLLECTION_NAME = "campusmind_chunks"
 VECTOR_DIMENSION = 384
 
 
+# Converts a chunk_id string into a stable UUID string format required by Qdrant.
 def chunk_id_to_uuid(chunk_id: str) -> str:
-    """
-    Converts a chunk_id string into a stable UUID string format required by Qdrant.
-    If chunk_id is already a valid UUID, returns it directly; otherwise generates a deterministic UUIDv5.
-    """
     try:
         val = uuid.UUID(chunk_id)
         return str(val)
@@ -44,7 +41,10 @@ def chunk_id_to_uuid(chunk_id: str) -> str:
         return str(uuid.uuid5(uuid.NAMESPACE_DNS, str(chunk_id)))
 
 
+# Manages dense vector storage, payload indexing, and similarity retrieval in Qdrant.
 class VectorStoreService:
+
+    # Initializes the VectorStoreService with collection name and client configuration.
     def __init__(
         self,
         collection_name: str = DEFAULT_COLLECTION_NAME,
@@ -53,16 +53,6 @@ class VectorStoreService:
         prefer_grpc: bool = False,
         client: Optional[QdrantClient] = None,
     ):
-        """
-        Initializes the VectorStoreService.
-        
-        Args:
-            collection_name: Name of the Qdrant collection (default: 'campusmind_chunks').
-            url: Qdrant server URL (e.g. 'http://localhost:6333') or None for in-memory / env var.
-            api_key: Optional API key for remote Qdrant instances.
-            prefer_grpc: Whether to use gRPC protocol for remote connections.
-            client: Optional pre-configured QdrantClient instance (for testing).
-        """
         self.collection_name = collection_name
         self.vector_dimension = VECTOR_DIMENSION
 
@@ -83,18 +73,13 @@ class VectorStoreService:
                 logger.info("Initializing in-memory QdrantClient (':memory:').")
                 self._client = QdrantClient(":memory:")
 
+    # Returns the active QdrantClient instance.
     @property
     def client(self) -> QdrantClient:
         return self._client
 
+    # Verifies if the target collection exists, creating it with 384-dim Cosine if absent.
     def ensure_collection(self) -> bool:
-        """
-        Verifies if the target collection exists. If not, creates it with
-        dimension=384 and distance=COSINE.
-        
-        Returns:
-            True if collection exists or was successfully created.
-        """
         try:
             collections = self._client.get_collections().collections
             exists = any(c.name == self.collection_name for c in collections)
@@ -113,18 +98,8 @@ class VectorStoreService:
             logger.error("Failed to ensure collection '%s': %s", self.collection_name, str(e))
             raise RuntimeError(f"Qdrant collection initialization failed: {e}") from e
 
+    # Batch upserts EmbeddedChunk objects with metadata into Qdrant.
     def upsert_chunks(self, embedded_chunks: Sequence[EmbeddedChunk], batch_size: int = 64) -> int:
-        """
-        Batch upserts EmbeddedChunk objects into Qdrant.
-        Stores chunk content and complete metadata in the point payload.
-        
-        Args:
-            embedded_chunks: Sequence of EmbeddedChunk items.
-            batch_size: Batch size for chunk upsertion.
-            
-        Returns:
-            Number of chunks upserted.
-        """
         if not embedded_chunks:
             return 0
 
@@ -178,6 +153,7 @@ class VectorStoreService:
         logger.info("Successfully upserted %d points into '%s'.", total_upserted, self.collection_name)
         return total_upserted
 
+    # Performs dense vector similarity search against the Qdrant collection.
     def search(
         self,
         query_vector: Sequence[float],
@@ -185,18 +161,6 @@ class VectorStoreService:
         filter_document_id: Optional[str] = None,
         min_score: float = 0.0,
     ) -> List[ScoredChunk]:
-        """
-        Performs dense vector similarity search against the Qdrant collection.
-        
-        Args:
-            query_vector: 384-dimensional dense vector representing the search query.
-            top_k: Number of nearest neighbors to retrieve (must be >= 1).
-            filter_document_id: Optional documentId filter.
-            min_score: Minimum cosine similarity score.
-            
-        Returns:
-            List of ScoredChunk objects with retrieval_method='vector'.
-        """
         if top_k <= 0:
             raise ValueError(f"top_k must be positive, got {top_k}")
 
@@ -260,16 +224,8 @@ class VectorStoreService:
 
         return results
 
+    # Deletes all chunks associated with a specific documentId.
     def delete_document(self, document_id: str) -> bool:
-        """
-        Deletes all chunks associated with a specific documentId.
-        
-        Args:
-            document_id: ID of the document whose chunks should be deleted.
-            
-        Returns:
-            True if deletion request succeeded.
-        """
         if not document_id:
             raise ValueError("document_id cannot be empty.")
 
@@ -292,8 +248,8 @@ class VectorStoreService:
         logger.info("Deleted chunks for documentId '%s' from '%s'.", document_id, self.collection_name)
         return True
 
+    # Returns the total number of points in the collection.
     def count_chunks(self) -> int:
-        """Returns the number of points in the collection."""
         self.ensure_collection()
         res = self._client.count(collection_name=self.collection_name, exact=True)
         return res.count

@@ -30,10 +30,8 @@ from evaluation.metrics import calculate_recall_at_k, calculate_mrr
 logger = logging.getLogger(__name__)
 
 
+# Evaluates chunking methods on corpus indexing and hybrid retrieval metrics.
 class ChunkingEvaluator:
-    """
-    Evaluates chunking methods on corpus indexing and hybrid retrieval metrics.
-    """
 
     def __init__(
         self,
@@ -52,10 +50,8 @@ class ChunkingEvaluator:
             default_chunk_overlap_tokens=chunk_overlap_tokens,
         )
 
+    # Runs the full indexing and retrieval evaluation for a given chunking method.
     def evaluate_method(self, method: str) -> Dict[str, Any]:
-        """
-        Runs the full indexing and retrieval evaluation for a given chunking method.
-        """
         # Step 1: Chunk documents
         t0 = time.perf_counter()
         all_chunks = []
@@ -144,8 +140,8 @@ class ChunkingEvaluator:
             "avg_retrieval_latency_ms": avg_latency_ms,
         }
 
+    # Runs comparison across all three chunking methods.
     def run_all(self, output_dir: str = "evaluation") -> Dict[str, Any]:
-        """Runs comparison across all three chunking methods."""
         methods = ["fixed", "recursive", "semantic"]
         results = {}
         for m in methods:

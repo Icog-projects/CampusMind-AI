@@ -20,11 +20,8 @@ from sqlalchemy.orm import sessionmaker, declarative_base, Session
 load_dotenv()
 logger = logging.getLogger(__name__)
 
+# Constructs the database connection URL from environment variables, defaulting to the local MySQL instance on port 3306.
 def get_database_url() -> str:
-    """
-    Constructs the database connection URL from environment variables,
-    defaulting to the local MySQL instance on port 3306.
-    """
     db_url = os.getenv("DATABASE_URL")
     if db_url:
         return db_url
@@ -44,8 +41,8 @@ _engine = None
 _SessionFactory = None
 
 
+# Returns or creates the singleton SQLAlchemy engine.
 def get_engine():
-    """Returns or creates the singleton SQLAlchemy engine."""
     global _engine
     if _engine is None:
         url = get_database_url()
@@ -60,19 +57,16 @@ def get_engine():
     return _engine
 
 
+# Returns or creates the sessionmaker.
 def get_session_factory():
-    """Returns or creates the sessionmaker."""
     global _SessionFactory
     if _SessionFactory is None:
         _SessionFactory = sessionmaker(autocommit=False, autoflush=False, bind=get_engine())
     return _SessionFactory
 
 
+# Dependency or context generator that yields a database session and ensures proper closing.
 def get_db_session() -> Generator[Session, None, None]:
-    """
-    Dependency or context generator that yields a database session
-    and ensures proper closing.
-    """
     factory = get_session_factory()
     session = factory()
     try:
@@ -81,8 +75,8 @@ def get_db_session() -> Generator[Session, None, None]:
         session.close()
 
 
+# Creates all registered database tables and indexes.
 def init_db(engine=None):
-    """Creates all registered database tables and indexes."""
     # Ensure all models are imported so Base.metadata knows about them
     import app.models.db_models  # noqa: F401
     target_engine = engine or get_engine()

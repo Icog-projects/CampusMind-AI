@@ -24,14 +24,11 @@ logger = logging.getLogger(__name__)
 security_bearer = HTTPBearer(auto_error=False)
 
 
+# Validates JWT token from the Authorization header and resolves the user from MySQL.
 def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_bearer),
     db: Session = Depends(get_db_session),
 ) -> UserModel:
-    """
-    Validates JWT token from the Authorization header and resolves the user from MySQL.
-    Raises 401 Unauthorized if missing, invalid, or expired.
-    """
     if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -75,11 +72,8 @@ def get_current_user(
     return user
 
 
+# Factory dependency checking if the authenticated user has one of the allowed roles.
 def require_roles(allowed_roles: List[str]) -> Callable:
-    """
-    Factory dependency checking if the authenticated user has one of the allowed roles.
-    Raises 403 Forbidden if user's role is not authorized.
-    """
     def role_checker(current_user: UserModel = Depends(get_current_user)) -> UserModel:
         clean_user_role = current_user.role.strip().lower()
         clean_allowed = [r.strip().lower() for r in allowed_roles]

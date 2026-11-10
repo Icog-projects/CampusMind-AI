@@ -26,8 +26,8 @@ DEFAULT_JWT_ALGORITHM = "HS256"
 DEFAULT_ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
 
+# Reads the JWT signing secret from environment variables.
 def get_jwt_secret() -> str:
-    """Reads the JWT signing secret from environment variables."""
     secret = os.getenv("JWT_SECRET")
     if not secret:
         # Fallback to deterministic development secret if not explicitly provided
@@ -51,11 +51,8 @@ def get_token_expire_minutes() -> int:
 # Password Hashing Functions
 # ---------------------------------------------------------------------------
 
+# Hashes a plaintext password using bcrypt with automatic salt generation.
 def hash_password(password: str) -> str:
-    """
-    Hashes a plaintext password using bcrypt with automatic salt generation.
-    Never stores or logs plaintext passwords.
-    """
     if not password:
         raise ValueError("Password cannot be empty.")
     # bcrypt requires bytes
@@ -65,11 +62,8 @@ def hash_password(password: str) -> str:
     return hashed.decode("utf-8")
 
 
+# Verifies a plaintext password against a stored bcrypt hash.
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """
-    Verifies a plaintext password against a stored bcrypt hash.
-    Safe against timing attacks.
-    """
     if not plain_password or not hashed_password:
         return False
     try:
@@ -86,6 +80,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 # JWT Token Functions
 # ---------------------------------------------------------------------------
 
+# Creates a signed JWT access token containing subject (user_id), email, role, and expiration timestamp.
 def create_access_token(
     user_id: str,
     email: str,
@@ -93,10 +88,6 @@ def create_access_token(
     expires_delta: Optional[timedelta] = None,
     extra_claims: Optional[Dict[str, Any]] = None,
 ) -> str:
-    """
-    Creates a signed JWT access token containing subject (user_id), email, role,
-    and expiration timestamp.
-    """
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
@@ -120,12 +111,8 @@ def create_access_token(
     return token
 
 
+# Decodes and validates a signed JWT token.
 def decode_access_token(token: str) -> Dict[str, Any]:
-    """
-    Decodes and validates a signed JWT token.
-    Raises jwt.PyJWTError subclasses (e.g. ExpiredSignatureError, InvalidTokenError)
-    if the token is invalid or expired.
-    """
     secret = get_jwt_secret()
     algorithm = get_jwt_algorithm()
 

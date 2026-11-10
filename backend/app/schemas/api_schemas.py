@@ -15,22 +15,22 @@ from pydantic import BaseModel, Field, EmailStr, ConfigDict
 # Authentication Schemas
 # ---------------------------------------------------------------------------
 
+# Payload for POST /auth/register.
 class UserRegisterRequest(BaseModel):
-    """Payload for POST /auth/register."""
     name: str = Field(..., min_length=2, max_length=128, description="Full name of user")
     email: str = Field(..., description="Email address")
     password: str = Field(..., min_length=6, description="Plaintext password")
     role: Optional[str] = Field("student", description="Role (defaults to 'student'; 'admin' cannot be self-assigned)")
 
 
+# Payload for POST /auth/login.
 class UserLoginRequest(BaseModel):
-    """Payload for POST /auth/login."""
     email: str = Field(..., description="Registered email address")
     password: str = Field(..., description="Plaintext password")
 
 
+# Safe user profile representation without password hash.
 class UserResponse(BaseModel):
-    """Safe user profile representation without password hash."""
     model_config = ConfigDict(from_attributes=True)
 
     id: str
@@ -40,8 +40,8 @@ class UserResponse(BaseModel):
     created_at: datetime
 
 
+# JWT response after successful login or registration.
 class TokenResponse(BaseModel):
-    """JWT response after successful login or registration."""
     access_token: str
     token_type: str = "bearer"
     user: UserResponse
@@ -51,8 +51,8 @@ class TokenResponse(BaseModel):
 # Document Schemas
 # ---------------------------------------------------------------------------
 
+# Document record representation returned from GET /documents.
 class DocumentResponse(BaseModel):
-    """Document record representation returned from GET /documents."""
     model_config = ConfigDict(from_attributes=True)
 
     id: str
@@ -67,8 +67,8 @@ class DocumentResponse(BaseModel):
     updated_at: datetime
 
 
+# Response returned from POST /documents/upload.
 class DocumentUploadResponse(BaseModel):
-    """Response returned from POST /documents/upload."""
     document_id: str
     filename: str
     status: str
@@ -81,8 +81,8 @@ class DocumentUploadResponse(BaseModel):
 # Chat Schemas
 # ---------------------------------------------------------------------------
 
+# Request payload for POST /chat/ask.
 class ChatAskRequest(BaseModel):
-    """Request payload for POST /chat/ask."""
     question: str = Field(..., description="User question to be answered by the RAG pipeline.")
     session_id: Optional[str] = Field(None, description="Optional existing chat session ID.")
     user_id: Optional[str] = Field(None, description="Optional user identifier.")
@@ -91,8 +91,8 @@ class ChatAskRequest(BaseModel):
     top_k: int = Field(5, description="Number of evidence chunks to retrieve and fuse.")
 
 
+# Structured evidence citation reference.
 class SourceCitationResponse(BaseModel):
-    """Structured evidence citation reference."""
     citation_index: int
     document_id: str
     document_name: str
@@ -102,8 +102,8 @@ class SourceCitationResponse(BaseModel):
     content_snippet: str
 
 
+# Response returned from POST /chat/ask.
 class ChatAskResponse(BaseModel):
-    """Response returned from POST /chat/ask."""
     session_id: str
     message_id: str
     answer: str
@@ -116,14 +116,14 @@ class ChatAskResponse(BaseModel):
 # Health and Metrics Schemas (FR-15)
 # ---------------------------------------------------------------------------
 
+# Status indicator for an external dependency.
 class DependencyStatus(BaseModel):
-    """Status indicator for an external dependency."""
     status: str  # 'healthy', 'degraded', 'unavailable'
     details: Optional[str] = None
 
 
+# Live cache statistics per SRS FR-15.
 class CacheMetrics(BaseModel):
-    """Live cache statistics per SRS FR-15."""
     hits: int = 0
     misses: int = 0
     total_queries: int = 0
@@ -131,8 +131,8 @@ class CacheMetrics(BaseModel):
     llm_calls_avoided: int = 0
 
 
+# Application health and dependency status.
 class HealthResponse(BaseModel):
-    """Application health and dependency status."""
     status: str
     app_env: str
     dependencies: Dict[str, DependencyStatus]

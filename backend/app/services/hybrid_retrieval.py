@@ -23,22 +23,12 @@ DEFAULT_CANDIDATE_LIMIT = 20
 DEFAULT_TOP_K = 5
 
 
+# Computes Reciprocal Rank Fusion over multiple ranked lists of ScoredChunks.
 def compute_rrf(
     ranked_lists: Sequence[Sequence[ScoredChunk]],
     k: int = DEFAULT_RRF_K,
     top_k: int = DEFAULT_TOP_K,
 ) -> List[ScoredChunk]:
-    """
-    Computes Reciprocal Rank Fusion over multiple ranked lists of ScoredChunks.
-
-    Args:
-        ranked_lists: A sequence of ranked lists (e.g. [bm25_results, vector_results]).
-        k: Smoothing constant for RRF (must be >= 1, standard default is 60).
-        top_k: Maximum number of fused items to return (must be >= 1).
-
-    Returns:
-        List[ScoredChunk] ordered by descending RRF score, with retrieval_method="hybrid".
-    """
     if k <= 0:
         raise ValueError(f"RRF constant k must be positive, got {k}")
     if top_k <= 0:
@@ -90,12 +80,10 @@ def compute_rrf(
     return fused_results
 
 
+# Orchestrates hybrid retrieval by querying BM25 and Qdrant and merging with RRF.
 class HybridRetrievalService:
-    """
-    Orchestrates hybrid retrieval by querying BM25 and Qdrant VectorStore
-    and merging candidates with Reciprocal Rank Fusion (RRF).
-    """
 
+    # Initializes the HybridRetrievalService with BM25, vector store, and parameters.
     def __init__(
         self,
         bm25_service: Optional[BM25RetrievalService] = None,
@@ -103,20 +91,12 @@ class HybridRetrievalService:
         default_k: int = DEFAULT_RRF_K,
         default_candidate_limit: int = DEFAULT_CANDIDATE_LIMIT,
     ):
-        """
-        Initializes the HybridRetrievalService.
-
-        Args:
-            bm25_service: Instance of BM25RetrievalService (optional).
-            vector_store: Instance of VectorStoreService (optional).
-            default_k: Default RRF smoothing factor (default: 60).
-            default_candidate_limit: Default number of candidates to pull from each sub-service.
-        """
         self.bm25_service = bm25_service
         self.vector_store = vector_store
         self.default_k = default_k
         self.default_candidate_limit = default_candidate_limit
 
+    # Performs hybrid retrieval combining BM25 keyword search and dense vector search.
     def search(
         self,
         query: str,
@@ -126,20 +106,6 @@ class HybridRetrievalService:
         k: Optional[int] = None,
         filter_document_id: Optional[str] = None,
     ) -> List[ScoredChunk]:
-        """
-        Performs hybrid retrieval combining BM25 keyword search and dense vector search.
-
-        Args:
-            query: Keyword query string for BM25.
-            query_vector: Dense embedding vector for Qdrant vector search.
-            top_k: Number of final fused results to return.
-            candidate_limit: Number of candidates to retrieve from each individual searcher.
-            k: RRF smoothing constant (default: 60).
-            filter_document_id: Optional documentId filter to narrow results.
-
-        Returns:
-            List[ScoredChunk] with retrieval_method="hybrid".
-        """
         if top_k <= 0:
             raise ValueError(f"top_k must be positive, got {top_k}")
 

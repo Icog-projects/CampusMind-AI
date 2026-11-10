@@ -41,49 +41,32 @@ User Question:
 Please provide a clear, factual answer grounded only in the evidence above, with appropriate inline citations [1], [2], etc."""
 
 
+# Orchestrates grounded answer generation with citation tracking over hybrid-retrieved chunks.
 class GenerationService:
-    """
-    Orchestrates grounded answer generation with citation tracking over hybrid-retrieved chunks.
-    """
 
+    # Initializes the GenerationService with LLM provider and generation limits.
     def __init__(
         self,
         llm_provider: Optional[BaseLLMProvider] = None,
         default_temperature: float = 0.1,
         default_max_tokens: int = 1024,
     ):
-        """
-        Initializes the GenerationService.
-
-        Args:
-            llm_provider: BaseLLMProvider implementation (defaults to GroqProvider if None).
-            default_temperature: Sampling temperature for generation (default: 0.1 for groundedness).
-            default_max_tokens: Maximum tokens in response completion.
-        """
         self._llm_provider = llm_provider
         self.default_temperature = default_temperature
         self.default_max_tokens = default_max_tokens
 
+    # Lazy-initializes or returns the active LLM provider.
     @property
     def provider(self) -> BaseLLMProvider:
-        """Lazy-initializes or returns the LLM provider."""
         if self._llm_provider is None:
             self._llm_provider = GroqProvider()
         return self._llm_provider
 
+    # Formats retrieved ScoredChunks into structured evidence text and citations metadata.
     def format_evidence(
         self,
         chunks: Sequence[ScoredChunk],
     ) -> Tuple[str, List[SourceCitation]]:
-        """
-        Formats retrieved ScoredChunks into structured evidence text and citations metadata.
-
-        Args:
-            chunks: Sequence of ScoredChunk objects from retrieval.
-
-        Returns:
-            Tuple of (evidence_text_block, list_of_SourceCitation).
-        """
         if not chunks:
             return "", []
 
@@ -117,6 +100,7 @@ class GenerationService:
         evidence_block = "\n\n".join(evidence_entries)
         return evidence_block, citations
 
+    # Generates a grounded, cited answer for the user's question using retrieved chunks.
     def generate_answer(
         self,
         question: str,
@@ -124,18 +108,6 @@ class GenerationService:
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
     ) -> GroundedAnswer:
-        """
-        Generates a grounded, cited answer for the user's question using retrieved chunks.
-
-        Args:
-            question: User question string.
-            retrieved_chunks: Chunks returned by hybrid retrieval.
-            temperature: Optional temperature override.
-            max_tokens: Optional token limit override.
-
-        Returns:
-            GroundedAnswer model with response text, mapped citations, and sufficiency flag.
-        """
         if not isinstance(question, str):
             raise TypeError(f"question must be a string, got {type(question)}")
 

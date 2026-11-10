@@ -34,12 +34,13 @@ from sqlalchemy import desc
 from app.models.db_models import UserModel, DocumentModel, ChatSessionModel, MessageModel, utc_now
 
 
+# Repository handling CRUD operations for UserModel.
 class UserRepository:
-    """Repository handling CRUD operations for UserModel."""
 
     def __init__(self, session: Session):
         self.session = session
 
+    # Creates and stores a new user account.
     def create_user(
         self,
         name: str,
@@ -48,7 +49,6 @@ class UserRepository:
         role: str = "student",
         user_id: Optional[str] = None,
     ) -> UserModel:
-        """Creates and stores a new user account."""
         uid = user_id or str(uuid.uuid4())
         user = UserModel(
             id=uid,
@@ -62,30 +62,31 @@ class UserRepository:
         self.session.refresh(user)
         return user
 
+    # Fetches a user by primary key.
     def get_by_id(self, user_id: str) -> Optional[UserModel]:
-        """Fetches a user by primary key."""
         return self.session.query(UserModel).filter(UserModel.id == user_id).first()
 
+    # Fetches a user by unique lowercase email.
     def get_by_email(self, email: str) -> Optional[UserModel]:
-        """Fetches a user by unique lowercase email."""
         if not email:
             return None
         return self.session.query(UserModel).filter(UserModel.email == email.strip().lower()).first()
 
+    # Lists users with optional role filtering.
     def list_users(self, role: Optional[str] = None, limit: int = 50, offset: int = 0) -> List[UserModel]:
-        """Lists users with optional role filtering."""
         query = self.session.query(UserModel)
         if role:
             query = query.filter(UserModel.role == role.strip().lower())
         return query.order_by(desc(UserModel.created_at)).offset(offset).limit(limit).all()
 
 
+# Repository handling CRUD operations for DocumentModel.
 class DocumentRepository:
-    """Repository handling CRUD operations for DocumentModel."""
 
     def __init__(self, session: Session):
         self.session = session
 
+    # Creates and stores a new document record.
     def create_document(
         self,
         document_id: str,
@@ -96,7 +97,6 @@ class DocumentRepository:
         chunk_count: int = 0,
         version: str = "v1",
     ) -> DocumentModel:
-        """Creates and stores a new document record."""
         doc = DocumentModel(
             id=document_id,
             filename=filename,
@@ -111,10 +111,11 @@ class DocumentRepository:
         self.session.refresh(doc)
         return doc
 
+    # Fetches a document by primary key.
     def get_by_id(self, document_id: str) -> Optional[DocumentModel]:
-        """Fetches a document by primary key."""
         return self.session.query(DocumentModel).filter(DocumentModel.id == document_id).first()
 
+    # Lists documents with optional status and version filtering.
     def list_documents(
         self,
         status: Optional[str] = None,
@@ -122,7 +123,6 @@ class DocumentRepository:
         limit: int = 50,
         offset: int = 0,
     ) -> List[DocumentModel]:
-        """Lists documents with optional status and version filtering."""
         query = self.session.query(DocumentModel)
         if status:
             query = query.filter(DocumentModel.status == status)
@@ -130,6 +130,7 @@ class DocumentRepository:
             query = query.filter(DocumentModel.version == version)
         return query.order_by(desc(DocumentModel.upload_date)).offset(offset).limit(limit).all()
 
+    # Updates document status, chunk count, and version.
     def update_status(
         self,
         document_id: str,
@@ -137,7 +138,6 @@ class DocumentRepository:
         chunk_count: Optional[int] = None,
         version: Optional[str] = None,
     ) -> Optional[DocumentModel]:
-        """Updates document status, chunk count, and version."""
         doc = self.get_by_id(document_id)
         if not doc:
             return None
@@ -151,8 +151,8 @@ class DocumentRepository:
         self.session.refresh(doc)
         return doc
 
+    # Deletes a document record by ID.
     def delete_document(self, document_id: str) -> bool:
-        """Deletes a document record by ID."""
         doc = self.get_by_id(document_id)
         if not doc:
             return False
@@ -161,19 +161,19 @@ class DocumentRepository:
         return True
 
 
+# Repository handling CRUD operations for ChatSessionModel and MessageModel.
 class ChatRepository:
-    """Repository handling CRUD operations for ChatSessionModel and MessageModel."""
 
     def __init__(self, session: Session):
         self.session = session
 
+    # Creates and stores a new conversation session.
     def create_session(
         self,
         session_id: Optional[str] = None,
         user_id: Optional[str] = None,
         title: str = "New Conversation",
     ) -> ChatSessionModel:
-        """Creates and stores a new conversation session."""
         sid = session_id or str(uuid.uuid4())
         chat_session = ChatSessionModel(
             id=sid,
@@ -185,22 +185,23 @@ class ChatRepository:
         self.session.refresh(chat_session)
         return chat_session
 
+    # Fetches a session by primary key.
     def get_session(self, session_id: str) -> Optional[ChatSessionModel]:
-        """Fetches a session by primary key."""
         return self.session.query(ChatSessionModel).filter(ChatSessionModel.id == session_id).first()
 
+    # Lists chat sessions belonging to a specific user or anonymous user.
     def list_sessions_for_user(
         self,
         user_id: Optional[str],
         limit: int = 50,
         offset: int = 0,
     ) -> List[ChatSessionModel]:
-        """Lists chat sessions belonging to a specific user or anonymous user."""
         query = self.session.query(ChatSessionModel)
         if user_id:
             query = query.filter(ChatSessionModel.user_id == user_id)
         return query.order_by(desc(ChatSessionModel.created_at)).offset(offset).limit(limit).all()
 
+    # Stores a message within a session, including role, content, structured source citations, and cache-hit status (SRS Section 8.
     def create_message(
         self,
         session_id: str,
@@ -210,10 +211,6 @@ class ChatRepository:
         is_cache_hit: bool = False,
         message_id: Optional[str] = None,
     ) -> MessageModel:
-        """
-        Stores a message within a session, including role, content,
-        structured source citations, and cache-hit status (SRS Section 8.1, 9.1).
-        """
         msg = MessageModel(
             id=message_id or str(uuid.uuid4()),
             session_id=session_id,
@@ -227,13 +224,13 @@ class ChatRepository:
         self.session.refresh(msg)
         return msg
 
+    # Retrieves messages for a session in chronological order.
     def get_session_messages(
         self,
         session_id: str,
         limit: int = 100,
         offset: int = 0,
     ) -> List[MessageModel]:
-        """Retrieves messages for a session in chronological order."""
         return (
             self.session.query(MessageModel)
             .filter(MessageModel.session_id == session_id)
@@ -243,8 +240,8 @@ class ChatRepository:
             .all()
         )
 
+    # Deletes a chat session and cascades deletion of its messages.
     def delete_session(self, session_id: str) -> bool:
-        """Deletes a chat session and cascades deletion of its messages."""
         session_obj = self.get_session(session_id)
         if not session_obj:
             return False

@@ -29,8 +29,8 @@ EXPECTED_DIMENSION = 384
 MAX_SEQUENCE_LENGTH = 512
 
 
+# Raised when an input sequence exceeds the model's maximum sequence length (512 tokens).
 class InputSequenceTooLongError(ValueError):
-    """Raised when an input sequence exceeds the model's maximum sequence length (512 tokens)."""
     pass
 
 
@@ -136,17 +136,6 @@ class EmbeddingService:
         chunks: List[Chunk],
         batch_size: Optional[int] = None,
     ) -> List[EmbeddedChunk]:
-        """
-        Generates embeddings for a batch of Chunk objects, preserving complete metadata
-        and pairing each embedding with its corresponding chunk.
-        
-        Args:
-            chunks: List of Chunk objects to embed.
-            batch_size: Optional custom batch size (overrides default).
-            
-        Returns:
-            List[EmbeddedChunk] with 1-to-1 association.
-        """
         if not isinstance(chunks, list):
             raise TypeError(f"Expected chunks to be a list, got {type(chunks)}")
 

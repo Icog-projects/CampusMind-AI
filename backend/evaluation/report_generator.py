@@ -9,14 +9,11 @@ Responsibilities:
 from typing import Dict, Any
 
 
+# Generates a formal evaluation markdown report containing comparison tables and conclusions based strictly on measured values.
 def generate_evaluation_markdown(
     chunking_results: Dict[str, Any],
     cache_results: Dict[str, Any],
 ) -> str:
-    """
-    Generates a formal evaluation markdown report containing comparison tables
-    and conclusions based strictly on measured values.
-    """
     md = []
     md.append("# CampusMind AI - Technical Evaluation Report (SRS v1.3)")
     md.append("\n**Evaluation Scope**: Chunking Method Comparison (Section 12.2) & Redis Answer Caching (Section 12.3)\n")

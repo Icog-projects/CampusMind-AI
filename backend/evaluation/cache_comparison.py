@@ -31,8 +31,8 @@ from evaluation.metrics import calculate_cache_metrics
 logger = logging.getLogger(__name__)
 
 
+# Fast mock LLM for controlled evaluation without consuming external API credits.
 class MockFastLLM(BaseLLMProvider):
-    """Fast mock LLM for controlled evaluation without consuming external API credits."""
     def __init__(self):
         self.call_count = 0
 
@@ -47,18 +47,14 @@ class MockFastLLM(BaseLLMProvider):
         }
 
 
+# Evaluates RAG latency, hit rates, and avoided LLM calls with caching disabled vs enabled.
 class CacheEvaluator:
-    """
-    Evaluates RAG latency, hit rates, and avoided LLM calls with caching disabled vs enabled.
-    """
 
     def __init__(self, rag_service: Optional[RAGService] = None):
         self.rag_service = rag_service
 
+    # Runs benchmark with Caching DISABLED, then with Caching ENABLED (with repeated traffic).
     def run_benchmark(self, output_dir: str = "evaluation") -> Dict[str, Any]:
-        """
-        Runs benchmark with Caching DISABLED, then with Caching ENABLED (with repeated traffic).
-        """
         # Build mock components
         mock_redis_store = {}
         mock_redis_cli = MagicMock()

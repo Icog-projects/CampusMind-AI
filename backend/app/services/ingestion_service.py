@@ -26,11 +26,8 @@ from app.repositories.database_repository import DocumentRepository
 logger = logging.getLogger(__name__)
 
 
+# Manages end-to-end document extraction, chunking, embedding, vector/keyword indexing, relational tracking, and cache invalidation.
 class IngestionService:
-    """
-    Manages end-to-end document extraction, chunking, embedding, vector/keyword indexing,
-    relational tracking, and cache invalidation.
-    """
 
     def __init__(
         self,
@@ -51,6 +48,7 @@ class IngestionService:
         self.bm25_service = bm25_service or BM25RetrievalService()
         self.cache_service = cache_service or RedisCacheService()
 
+    # Executes end-to-end ingestion pipeline: 1.
     def ingest_file(
         self,
         file_bytes: bytes,
@@ -62,18 +60,6 @@ class IngestionService:
         version: str = "v1",
         storage_dir: Optional[str] = "storage/uploads",
     ) -> Dict[str, Any]:
-        """
-        Executes end-to-end ingestion pipeline:
-        1. Validates and saves file to local storage.
-        2. Creates initial 'uploaded' record in MySQL.
-        3. Extracts and cleans text using DocumentExtractor.
-        4. Chunks text using ChunkingService.
-        5. Embeds chunks using EmbeddingService.
-        6. Stores vectors and metadata in Qdrant.
-        7. Synchronizes BM25 index with new chunks.
-        8. Updates MySQL document status to 'indexed' with chunk_count and version.
-        9. Invalidates Redis cache by updating KB version or clearing relevant keys.
-        """
         doc_id = str(uuid.uuid4())
         saved_file_path = None
 

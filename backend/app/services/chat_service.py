@@ -19,16 +19,15 @@ from app.repositories.database_repository import ChatRepository
 logger = logging.getLogger(__name__)
 
 
+# Coordinates chat session lifecycle, interaction persistence, and RAG execution.
 class ChatService:
-    """
-    Coordinates chat session lifecycle, interaction persistence, and RAG execution.
-    """
 
     def __init__(self, db_session: Session, rag_service: Optional[RAGService] = None):
         self.db_session = db_session
         self.chat_repo = ChatRepository(db_session)
         self.rag_service = rag_service or RAGService()
 
+    # Processes a user question within a session: 1.
     def ask(
         self,
         question: str,
@@ -38,15 +37,6 @@ class ChatService:
         filter_document_id: Optional[str] = None,
         top_k: int = 5,
     ) -> Dict[str, Any]:
-        """
-        Processes a user question within a session:
-        1. Ensures or creates the chat session.
-        2. Persists the incoming user question in MySQL.
-        3. Queries RAGService (which checks Redis cache before retrieval/generation).
-        4. Detects whether the result was served from cache.
-        5. Persists the assistant answer and source citations in MySQL with the is_cache_hit flag.
-        6. Returns the answer, citations, session ID, and cache-hit status.
-        """
         # Step 1: Ensure session exists or create one
         session_obj = None
         if session_id:

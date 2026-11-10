@@ -23,30 +23,31 @@ logger = logging.getLogger(__name__)
 DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b"
 
 
+# Base exception for LLM provider errors.
 class LLMError(Exception):
-    """Base exception for LLM provider errors."""
     pass
 
 
+# Raised when LLM configuration (such as API keys) is missing or invalid.
 class LLMConfigurationError(LLMError):
-    """Raised when LLM configuration (such as API keys) is missing or invalid."""
     pass
 
 
+# Raised when an LLM API request times out.
 class LLMTimeoutError(LLMError):
-    """Raised when an LLM API request times out."""
     pass
 
 
+# Raised when an LLM API returns an error response.
 class LLMAPIError(LLMError):
-    """Raised when an LLM API returns an error response."""
     pass
 
 
+# Abstract interface defining the contract for LLM providers.
 class BaseLLMProvider(ABC):
-    """Abstract interface defining the contract for LLM providers."""
 
     @abstractmethod
+    # Executes a completion/chat request.
     def generate(
         self,
         messages: List[Dict[str, str]],
@@ -54,23 +55,13 @@ class BaseLLMProvider(ABC):
         max_tokens: int = 1024,
         **kwargs: Any,
     ) -> Dict[str, Any]:
-        """
-        Executes a completion/chat request.
-
-        Returns a dictionary with:
-            - "content": str
-            - "model": str
-            - "prompt_tokens": Optional[int]
-            - "completion_tokens": Optional[int]
-        """
         pass
 
 
+# Groq LLM provider implementation using the official `groq` SDK.
 class GroqProvider(BaseLLMProvider):
-    """
-    Groq LLM provider implementation using the official `groq` SDK.
-    """
 
+    # Initializes the Groq provider.
     def __init__(
         self,
         api_key: Optional[str] = None,
@@ -78,15 +69,6 @@ class GroqProvider(BaseLLMProvider):
         timeout: float = 30.0,
         client: Optional[Any] = None,
     ):
-        """
-        Initializes the Groq provider.
-
-        Args:
-            api_key: Optional Groq API key (defaults to GROQ_API_KEY environment variable).
-            model: Optional model identifier (defaults to GROQ_MODEL or openai/gpt-oss-120b).
-            timeout: Request timeout in seconds.
-            client: Optional pre-configured Groq client (useful for dependency injection / mocking).
-        """
         if api_key is not None:
             self.api_key = api_key
         else:
@@ -114,6 +96,7 @@ class GroqProvider(BaseLLMProvider):
             except Exception as e:
                 raise LLMConfigurationError(f"Failed to initialize Groq client: {e}")
 
+    # Sends chat completion messages to Groq.
     def generate(
         self,
         messages: List[Dict[str, str]],
@@ -121,9 +104,6 @@ class GroqProvider(BaseLLMProvider):
         max_tokens: int = 1024,
         **kwargs: Any,
     ) -> Dict[str, Any]:
-        """
-        Sends chat completion messages to Groq.
-        """
         if not messages:
             raise ValueError("Messages list cannot be empty.")
 
