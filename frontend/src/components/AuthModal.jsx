@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 
 export const AuthModal = ({ mode, isOpen, onClose, onSwitchMode, onSuccess }) => {
-  const { login } = useAuth();
+  const { login, API_BASE_URL } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -13,57 +13,97 @@ export const AuthModal = ({ mode, isOpen, onClose, onSwitchMode, onSuccess }) =>
 
   const isLogin = mode === 'login';
 
+  const resetForm = () => {
+    setEmail('');
+    setPassword('');
+    setName('');
+    setError(null);
+  };
+
+  const handleClose = () => {
+    resetForm();
+    onClose();
+  };
+
+  const handleSwitch = (newMode) => {
+    resetForm();
+    onSwitchMode(newMode);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
-    setLoading(true);
 
-    const baseUrl = 'http://localhost:8000';
+    const cleanEmail = email.trim();
+    if (!cleanEmail) {
+      setError('Please provide a valid university email address.');
+      return;
+    }
+    if (!password || password.length < 6) {
+      setError('Password must be at least 6 characters long.');
+      return;
+    }
+
+    setLoading(true);
 
     try {
       if (isLogin) {
-        const res = await fetch(`${baseUrl}/auth/login`, {
+        // Authenticate user
+        const res = await fetch(`${API_BASE_URL}/auth/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password }),
+          body: JSON.stringify({ email: cleanEmail, password }),
         });
 
         const data = await res.json();
         if (!res.ok) {
-          throw new Error(data.detail || 'Failed to authenticate');
+          throw new Error(data.detail || 'Invalid email or password.');
         }
 
         login(data.access_token, data.user);
+        resetForm();
         onSuccess();
       } else {
-        // Register flow
-        const res = await fetch(`${baseUrl}/auth/register`, {
+        // Registration flow - strictly creates student account
+        const cleanName = name.trim();
+        if (!cleanName) {
+          throw new Error('Please enter your full name.');
+        }
+
+        const res = await fetch(`${API_BASE_URL}/auth/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, email, password, role: 'student' }),
+          body: JSON.stringify({
+            name: cleanName,
+            email: cleanEmail,
+            password,
+            role: 'student', // Strict student default per SRS v1.2
+          }),
         });
 
         const data = await res.json();
         if (!res.ok) {
-          throw new Error(data.detail || 'Registration failed');
+          throw new Error(data.detail || 'Registration failed. Please check your details.');
         }
 
-        // Auto-login after registration
-        const loginRes = await fetch(`${baseUrl}/auth/login`, {
+        // Automatic seamless login following successful registration
+        const loginRes = await fetch(`${API_BASE_URL}/auth/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password }),
+          body: JSON.stringify({ email: cleanEmail, password }),
         });
         const loginData = await loginRes.json();
         if (loginRes.ok) {
           login(loginData.access_token, loginData.user);
+          resetForm();
           onSuccess();
         } else {
-          onSwitchMode('login');
+          // If auto-login fails, redirect user to login tab with clear message
+          handleSwitch('login');
         }
       }
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -74,8 +114,9 @@ export const AuthModal = ({ mode, isOpen, onClose, onSwitchMode, onSuccess }) =>
       <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-100 p-6 sm:p-8">
         {/* Close Button */}
         <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+          onClick={handleClose}
+          className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1 rounded-lg transition-colors"
+          aria-label="Close"
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -95,13 +136,17 @@ export const AuthModal = ({ mode, isOpen, onClose, onSwitchMode, onSuccess }) =>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
             {isLogin
               ? 'Access verified university RAG Q&A'
-              : 'Register to start asking grounded academic questions'}
+              : 'Register as a student to start asking grounded academic questions'}
           </p>
         </div>
 
+        {/* Error Alert */}
         {error && (
-          <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs">
-            {error}
+          <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs flex items-start space-x-2">
+            <svg className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>{error}</span>
           </div>
         )}
 
@@ -117,7 +162,8 @@ export const AuthModal = ({ mode, isOpen, onClose, onSwitchMode, onSuccess }) =>
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Jane Doe"
-                className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                disabled={loading}
+                className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 disabled:bg-slate-50 disabled:text-slate-500"
               />
             </div>
           )}
@@ -131,8 +177,9 @@ export const AuthModal = ({ mode, isOpen, onClose, onSwitchMode, onSuccess }) =>
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="student@campus.edu"
-              className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+              placeholder="user@campus.edu"
+              disabled={loading}
+              className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 disabled:bg-slate-50 disabled:text-slate-500"
             />
           </div>
 
@@ -146,16 +193,23 @@ export const AuthModal = ({ mode, isOpen, onClose, onSwitchMode, onSuccess }) =>
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
-              className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+              disabled={loading}
+              className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 disabled:bg-slate-50 disabled:text-slate-500"
             />
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 px-4 rounded-xl text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-500/20 transition-colors disabled:opacity-50"
+            className="w-full py-3 px-4 rounded-xl text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-500/20 transition-all disabled:opacity-50 flex items-center justify-center space-x-2"
           >
-            {loading ? 'Processing...' : isLogin ? 'Sign In' : 'Create Account'}
+            {loading && (
+              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            )}
+            <span>{loading ? 'Processing...' : isLogin ? 'Sign In' : 'Create Student Account'}</span>
           </button>
         </form>
 
@@ -165,7 +219,7 @@ export const AuthModal = ({ mode, isOpen, onClose, onSwitchMode, onSuccess }) =>
               Don't have an account?{' '}
               <button
                 type="button"
-                onClick={() => onSwitchMode('register')}
+                onClick={() => handleSwitch('register')}
                 className="font-semibold text-blue-600 hover:underline"
               >
                 Register
@@ -176,7 +230,7 @@ export const AuthModal = ({ mode, isOpen, onClose, onSwitchMode, onSuccess }) =>
               Already registered?{' '}
               <button
                 type="button"
-                onClick={() => onSwitchMode('login')}
+                onClick={() => handleSwitch('login')}
                 className="font-semibold text-blue-600 hover:underline"
               >
                 Sign In
@@ -188,4 +242,3 @@ export const AuthModal = ({ mode, isOpen, onClose, onSwitchMode, onSuccess }) =>
     </div>
   );
 };
-
