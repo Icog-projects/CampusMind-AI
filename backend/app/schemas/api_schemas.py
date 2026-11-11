@@ -44,7 +44,18 @@ class UserResponse(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    refresh_token: Optional[str] = None
     user: UserResponse
+
+
+# Payload for POST /auth/refresh.
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str = Field(..., description="Active refresh token string")
+
+
+# Payload for POST /auth/logout.
+class LogoutRequest(BaseModel):
+    refresh_token: Optional[str] = Field(None, description="Active refresh token to revoke")
 
 
 # ---------------------------------------------------------------------------

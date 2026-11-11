@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 
 export const DocumentManagement = ({ onNavigate }) => {
-  const { token, API_BASE_URL } = useAuth();
+  const { token, authFetch, API_BASE_URL } = useAuth();
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -16,9 +16,8 @@ export const DocumentManagement = ({ onNavigate }) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE_URL}/documents`, {
+      const res = await authFetch(`${API_BASE_URL}/documents`, {
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       });
@@ -84,11 +83,8 @@ export const DocumentManagement = ({ onNavigate }) => {
       formData.append('file', selectedFile);
       formData.append('chunking_method', chunkingMethod);
 
-      const res = await fetch(`${API_BASE_URL}/documents/upload`, {
+      const res = await authFetch(`${API_BASE_URL}/documents/upload`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
         body: formData,
       });
 

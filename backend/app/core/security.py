@@ -1,18 +1,23 @@
 """CampusMind AI - Authentication & Cryptography Utilities.
 
-Handles password hashing (bcrypt) and JSON Web Token (JWT) encoding and decoding.
+Handles password hashing (bcrypt), JSON Web Token (JWT) encoding and decoding, and refresh token generation.
 
 Responsibilities:
 1. get_jwt_secret(): Retrieves JWT secret key from environment or fallback default.
 2. get_jwt_algorithm(): Retrieves the configured cryptographic signing algorithm.
 3. get_token_expire_minutes(): Returns JWT access token expiration duration in minutes.
-4. hash_password(): Generates a secure salted bcrypt hash for a plaintext password.
-5. verify_password(): Verifies whether a candidate plaintext password matches a stored bcrypt hash.
-6. create_access_token(): Signs and encodes a JWT token with subject ID, role, and expiration timestamp.
-7. decode_access_token(): Decodes and verifies the cryptographic signature of a JWT string.
+4. get_refresh_token_expire_days(): Returns refresh token expiration duration in days.
+5. hash_password(): Generates a secure salted bcrypt hash for a plaintext password.
+6. verify_password(): Verifies whether a candidate plaintext password matches a stored bcrypt hash.
+7. create_access_token(): Signs and encodes a JWT token with subject ID, role, and expiration timestamp.
+8. decode_access_token(): Decodes and verifies the cryptographic signature of a JWT string.
+9. generate_refresh_token(): Generates a cryptographically secure random refresh token string.
+10. hash_token(): Computes SHA-256 hash of a raw token string for secure persistent storage.
 """
 
 import os
+import hashlib
+import secrets
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
@@ -24,6 +29,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_JWT_ALGORITHM = "HS256"
 DEFAULT_ACCESS_TOKEN_EXPIRE_MINUTES = 60
+DEFAULT_REFRESH_TOKEN_EXPIRE_DAYS = 30
 
 
 # Reads the JWT signing secret from environment variables.
@@ -45,6 +51,14 @@ def get_token_expire_minutes() -> int:
         return int(exp_str)
     except ValueError:
         return DEFAULT_ACCESS_TOKEN_EXPIRE_MINUTES
+
+
+def get_refresh_token_expire_days() -> int:
+    exp_str = os.getenv("JWT_REFRESH_TOKEN_EXPIRE_DAYS", str(DEFAULT_REFRESH_TOKEN_EXPIRE_DAYS))
+    try:
+        return int(exp_str)
+    except ValueError:
+        return DEFAULT_REFRESH_TOKEN_EXPIRE_DAYS
 
 
 # ---------------------------------------------------------------------------
@@ -123,4 +137,14 @@ def decode_access_token(token: str) -> Dict[str, Any]:
         options={"require": ["sub", "role", "exp"]},
     )
     return payload
+
+
+# Generates a cryptographically secure random refresh token string.
+def generate_refresh_token() -> str:
+    return secrets.token_urlsafe(48)
+
+
+# Computes SHA-256 hash of a raw token string for secure persistent storage.
+def hash_token(raw_token: str) -> str:
+    return hashlib.sha256(raw_token.strip().encode("utf-8")).hexdigest()
 

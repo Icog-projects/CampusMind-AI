@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { MarkdownRenderer } from './MarkdownRenderer';
 
 export const ChatPage = ({ onNavigate }) => {
-  const { token, user, API_BASE_URL } = useAuth();
+  const { token, user, authFetch, API_BASE_URL } = useAuth();
   const [sessions, setSessions] = useState([]);
   const [currentSessionId, setCurrentSessionId] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -27,9 +27,8 @@ export const ChatPage = ({ onNavigate }) => {
   const fetchSessions = async () => {
     setSessionsLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/chat/sessions`, {
+      const res = await authFetch(`${API_BASE_URL}/chat/sessions`, {
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       });
@@ -56,9 +55,8 @@ export const ChatPage = ({ onNavigate }) => {
     setError(null);
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/chat/history/${sessionId}`, {
+      const res = await authFetch(`${API_BASE_URL}/chat/history/${sessionId}`, {
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       });
@@ -113,10 +111,9 @@ export const ChatPage = ({ onNavigate }) => {
         top_k: 5,
       };
 
-      const res = await fetch(`${API_BASE_URL}/chat/ask`, {
+      const res = await authFetch(`${API_BASE_URL}/chat/ask`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(payload),
@@ -173,9 +170,8 @@ export const ChatPage = ({ onNavigate }) => {
 
       {/* Conversations Sidebar */}
       <aside
-        className={`fixed lg:static inset-y-0 left-0 z-50 w-64 bg-white border-r border-slate-200 flex flex-col transition-transform duration-300 ease-in-out lg:translate-x-0 ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
+        className={`fixed lg:static inset-y-0 left-0 z-50 w-64 bg-white border-r border-slate-200 flex flex-col transition-transform duration-300 ease-in-out lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
       >
         {/* Sidebar Header: New Chat Button */}
         <div className="p-3.5 border-b border-slate-100 flex items-center justify-between">
@@ -221,11 +217,10 @@ export const ChatPage = ({ onNavigate }) => {
                 <button
                   key={sess.id}
                   onClick={() => loadSession(sess.id)}
-                  className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-colors flex items-center space-x-2 truncate ${
-                    isActive
+                  className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-colors flex items-center space-x-2 truncate ${isActive
                       ? 'bg-blue-50 text-blue-700 font-semibold'
                       : 'text-slate-700 hover:bg-slate-100'
-                  }`}
+                    }`}
                 >
                   <svg
                     className={`w-3.5 h-3.5 flex-shrink-0 ${isActive ? 'text-blue-600' : 'text-slate-400'}`}
@@ -318,11 +313,10 @@ export const ChatPage = ({ onNavigate }) => {
                 className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}
               >
                 <div
-                  className={`max-w-2xl rounded-2xl p-4 text-xs sm:text-sm leading-relaxed ${
-                    isUser
+                  className={`max-w-2xl rounded-2xl p-4 text-xs sm:text-sm leading-relaxed ${isUser
                       ? 'bg-blue-600 text-white rounded-br-xs'
                       : 'bg-white text-slate-800 border border-slate-200 shadow-2xs rounded-bl-xs'
-                  }`}
+                    }`}
                 >
                   {/* Clean, Subtle Cached Badge */}
                   {!isUser && msg.is_cache_hit && (

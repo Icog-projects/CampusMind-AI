@@ -64,7 +64,7 @@ export const AuthModal = ({ mode, isOpen, onClose, onSwitchMode, onSuccess }) =>
           throw new Error(data.detail || 'Invalid email or password.');
         }
 
-        login(data.access_token, data.user);
+        login(data.access_token, data.user, data.refresh_token);
         resetForm();
         onSuccess(data.user);
       } else {
@@ -98,7 +98,7 @@ export const AuthModal = ({ mode, isOpen, onClose, onSwitchMode, onSuccess }) =>
         });
         const loginData = await loginRes.json().catch(() => ({}));
         if (loginRes.ok) {
-          login(loginData.access_token, loginData.user);
+          login(loginData.access_token, loginData.user, loginData.refresh_token);
           resetForm();
           onSuccess(loginData.user);
         } else {

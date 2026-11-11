@@ -6,7 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 
 export const AdminDashboard = ({ onNavigate }) => {
-  const { token, API_BASE_URL } = useAuth();
+  const { token, authFetch, API_BASE_URL } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [documents, setDocuments] = useState([]);
@@ -22,14 +22,13 @@ export const AdminDashboard = ({ onNavigate }) => {
 
     try {
       const headers = {
-        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
       };
 
-      // Parallel fetch for documents, cache metrics, and system health
+      // Parallel fetch for documents, cache metrics, and system health with auto-renewal authFetch
       const [docsRes, metricsRes, healthRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/documents`, { headers }),
-        fetch(`${API_BASE_URL}/metrics/cache`, { headers }),
+        authFetch(`${API_BASE_URL}/documents`, { headers }),
+        authFetch(`${API_BASE_URL}/metrics/cache`, { headers }),
         fetch(`${API_BASE_URL}/health`),
       ]);
 
@@ -68,9 +67,6 @@ export const AdminDashboard = ({ onNavigate }) => {
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
             System Dashboard
           </h1>
-          <p className="text-xs sm:text-sm text-slate-600 mt-1">
-            System status, corpus statistics, and cache performance.
-          </p>
         </div>
 
         <div className="flex items-center space-x-3">
@@ -115,7 +111,7 @@ export const AdminDashboard = ({ onNavigate }) => {
         {/* Card 1: Total Corpus Documents */}
         <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm hover:border-slate-300 transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Indexed Documents</span>
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Documents</span>
             <span className="p-2 rounded-xl bg-blue-50 text-blue-600">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -125,16 +121,15 @@ export const AdminDashboard = ({ onNavigate }) => {
           <div className="mt-3 flex items-baseline space-x-2">
             <span className="text-3xl font-extrabold text-slate-900">{loading ? '...' : totalDocs}</span>
             <span className="text-xs font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
-              {indexedDocs} active
+              {indexedDocs} indexed
             </span>
           </div>
-          <p className="mt-2 text-xs text-slate-500">Live documents stored in MySQL database</p>
         </div>
 
-        {/* Card 2: Total Chunks in Hybrid Index */}
+        {/* Card 2: Total Chunks */}
         <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm hover:border-slate-300 transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Vector Chunks</span>
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Chunks</span>
             <span className="p-2 rounded-xl bg-indigo-50 text-indigo-600">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
@@ -143,12 +138,10 @@ export const AdminDashboard = ({ onNavigate }) => {
           </div>
           <div className="mt-3 flex items-baseline space-x-2">
             <span className="text-3xl font-extrabold text-slate-900">{loading ? '...' : totalChunks}</span>
-            <span className="text-xs text-slate-500 font-medium">BGE-small 384d</span>
           </div>
-          <p className="mt-2 text-xs text-slate-500">Indexed across Qdrant HNSW & BM25</p>
         </div>
 
-        {/* Card 3: Redis Cache Hit Rate */}
+        {/* Card 3: Cache Hit Rate */}
         <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm hover:border-slate-300 transition-all">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Cache Hit Rate</span>
@@ -163,16 +156,15 @@ export const AdminDashboard = ({ onNavigate }) => {
               {loading ? '...' : `${cacheMetrics?.hit_rate_pct ?? 0}%`}
             </span>
             <span className="text-xs text-slate-500 font-medium">
-              {cacheMetrics?.hits ?? 0} / {cacheMetrics?.total_queries ?? 0}
+              {cacheMetrics?.hits ?? 0} / {cacheMetrics?.total_queries ?? 0} queries
             </span>
           </div>
-          <p className="mt-2 text-xs text-slate-500">Sub-second answers served by Redis</p>
         </div>
 
         {/* Card 4: Avoided LLM Calls */}
         <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm hover:border-slate-300 transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">LLM Calls Avoided</span>
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Calls Avoided</span>
             <span className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -183,11 +175,7 @@ export const AdminDashboard = ({ onNavigate }) => {
             <span className="text-3xl font-extrabold text-slate-900">
               {loading ? '...' : (cacheMetrics?.llm_calls_avoided ?? 0)}
             </span>
-            <span className="text-xs font-medium text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
-              0 tokens used
-            </span>
           </div>
-          <p className="mt-2 text-xs text-slate-500">Direct cache retrieval efficiency</p>
         </div>
       </div>
 
@@ -197,8 +185,7 @@ export const AdminDashboard = ({ onNavigate }) => {
         <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
           <div className="flex items-center justify-between pb-4 border-b border-slate-100">
             <div>
-              <h2 className="text-base font-bold text-slate-900">Backend Infrastructure & Services</h2>
-              <p className="text-xs text-slate-500">Live operational status of storage and retrieval dependencies</p>
+              <h2 className="text-base font-bold text-slate-900">Services & Infrastructure</h2>
             </div>
             <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
               systemHealth?.status === 'healthy' 
@@ -208,7 +195,7 @@ export const AdminDashboard = ({ onNavigate }) => {
               <span className={`w-2 h-2 rounded-full mr-1.5 ${
                 systemHealth?.status === 'healthy' ? 'bg-emerald-600' : 'bg-amber-600'
               }`}></span>
-              System: {systemHealth?.status?.toUpperCase() || 'UNKNOWN'}
+              Status: {systemHealth?.status?.toUpperCase() || 'UNKNOWN'}
             </span>
           </div>
 
@@ -222,7 +209,7 @@ export const AdminDashboard = ({ onNavigate }) => {
                 <div>
                   <h3 className="text-sm font-semibold text-slate-800">MySQL Database</h3>
                   <p className="text-xs text-slate-500">
-                    {systemHealth?.dependencies?.mysql?.details || 'Relational persistence (users, documents, chats)'}
+                    {systemHealth?.dependencies?.mysql?.details || 'Database connection'}
                   </p>
                 </div>
               </div>
@@ -238,9 +225,9 @@ export const AdminDashboard = ({ onNavigate }) => {
                   RDS
                 </div>
                 <div>
-                  <h3 className="text-sm font-semibold text-slate-800">Redis In-Memory Cache</h3>
+                  <h3 className="text-sm font-semibold text-slate-800">Redis Cache</h3>
                   <p className="text-xs text-slate-500">
-                    {systemHealth?.dependencies?.redis?.details || 'Sub-millisecond answer cache & invalidation engine'}
+                    {systemHealth?.dependencies?.redis?.details || 'Cache connection'}
                   </p>
                 </div>
               </div>
@@ -258,7 +245,7 @@ export const AdminDashboard = ({ onNavigate }) => {
                 <div>
                   <h3 className="text-sm font-semibold text-slate-800">Qdrant Vector Database</h3>
                   <p className="text-xs text-slate-500">
-                    {systemHealth?.dependencies?.qdrant?.details || 'HNSW index & dense cosine similarity search'}
+                    {systemHealth?.dependencies?.qdrant?.details || 'Vector store connection'}
                   </p>
                 </div>
               </div>
@@ -274,20 +261,17 @@ export const AdminDashboard = ({ onNavigate }) => {
           {/* Document Management Card */}
           <div className="bg-gradient-to-br from-blue-50 to-indigo-50/50 rounded-2xl border border-blue-200/80 p-5 shadow-sm">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-blue-700 uppercase tracking-wider">Document Pipeline</span>
+              <span className="text-xs font-bold text-blue-700 uppercase tracking-wider">Documents</span>
               <span className="text-xs font-semibold bg-white px-2 py-0.5 rounded-full text-blue-800 shadow-xs border border-blue-100">
                 {totalDocs} files
               </span>
             </div>
             <h3 className="text-base font-extrabold text-slate-900 mt-2">Document Management</h3>
-            <p className="text-xs text-slate-600 mt-1">
-              Upload institutional handbooks, syllabi, and guidelines. Monitor ingestion and chunk counts.
-            </p>
             <button
               onClick={() => onNavigate('documents')}
               className="mt-4 w-full py-2 px-3 text-xs font-bold rounded-xl text-white bg-blue-600 hover:bg-blue-700 shadow-sm transition-colors flex items-center justify-center space-x-1"
             >
-              <span>Open Document Manager</span>
+              <span>Manage Documents</span>
               <span>&rarr;</span>
             </button>
           </div>
@@ -295,20 +279,17 @@ export const AdminDashboard = ({ onNavigate }) => {
           {/* Redis Cache Analytics Card */}
           <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-2xl border border-slate-200 p-5 shadow-sm">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Telemetry Engine</span>
+              <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Cache</span>
               <span className="text-xs font-semibold bg-white px-2 py-0.5 rounded-full text-slate-700 shadow-xs border border-slate-200">
-                {cacheMetrics?.hit_rate_pct ?? 0}% efficiency
+                {cacheMetrics?.hit_rate_pct ?? 0}%
               </span>
             </div>
             <h3 className="text-base font-extrabold text-slate-900 mt-2">Cache Analytics</h3>
-            <p className="text-xs text-slate-600 mt-1">
-              Inspect live hit/miss ratios, avoided LLM inference costs, and cache key invalidation versions.
-            </p>
             <button
               onClick={() => onNavigate('cache-analytics')}
               className="mt-4 w-full py-2 px-3 text-xs font-bold rounded-xl text-slate-800 bg-white hover:bg-slate-50 border border-slate-300 shadow-sm transition-colors flex items-center justify-center space-x-1"
             >
-              <span>View Cache Telemetry</span>
+              <span>View Analytics</span>
               <span>&rarr;</span>
             </button>
           </div>
@@ -319,8 +300,7 @@ export const AdminDashboard = ({ onNavigate }) => {
       <div className="mt-8 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-6 border-b border-slate-100 flex items-center justify-between">
           <div>
-            <h2 className="text-base font-bold text-slate-900">Recent Knowledge Base Documents</h2>
-            <p className="text-xs text-slate-500">Most recently indexed academic documents active in the RAG corpus</p>
+            <h2 className="text-base font-bold text-slate-900">Recent Documents</h2>
           </div>
           <button
             onClick={() => onNavigate('documents')}
@@ -332,7 +312,7 @@ export const AdminDashboard = ({ onNavigate }) => {
 
         {documents.length === 0 ? (
           <div className="p-8 text-center text-sm text-slate-500">
-            No documents uploaded yet. Go to Document Management to upload your first campus handbook.
+            No documents uploaded yet.
           </div>
         ) : (
           <div className="overflow-x-auto">

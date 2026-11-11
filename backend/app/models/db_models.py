@@ -1,17 +1,19 @@
 """CampusMind AI - SQLAlchemy ORM Models.
 
-Defines database models for users, documents, chat sessions, and messages.
+Defines database models for users, documents, chat sessions, messages, and refresh tokens.
 
 Responsibilities:
 1. utc_now(): Generates timezone-naive UTC datetime timestamps for database records.
 Class UserModel:
 2. UserModel.__repr__(): Formats string representation of user account models.
+Class RefreshTokenModel:
+3. RefreshTokenModel.__repr__(): Formats string representation of refresh token session models.
 Class DocumentModel:
-3. DocumentModel.__repr__(): Formats string representation of document models.
+4. DocumentModel.__repr__(): Formats string representation of document models.
 Class ChatSessionModel:
-4. ChatSessionModel.__repr__(): Formats string representation of chat session models.
+5. ChatSessionModel.__repr__(): Formats string representation of chat session models.
 Class MessageModel:
-5. MessageModel.__repr__(): Formats string representation of chat message models.
+6. MessageModel.__repr__(): Formats string representation of chat message models.
 """
 
 import uuid
@@ -56,6 +58,27 @@ class UserModel(Base):
 
     def __repr__(self):
         return f"<UserModel(id='{self.id}', email='{self.email}', role='{self.role}')>"
+
+
+# Stores hashed refresh tokens for automatic session renewal and token revocation.
+class RefreshTokenModel(Base):
+    __tablename__ = "refresh_tokens"
+
+    id = Column(String(64), primary_key=True, index=True)
+    user_id = Column(String(64), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    token_hash = Column(String(64), unique=True, nullable=False, index=True)
+    expires_at = Column(DATETIME(fsp=6), nullable=False, index=True)
+    revoked = Column(Boolean, default=False, nullable=False, index=True)
+    created_at = Column(DATETIME(fsp=6), default=utc_now, nullable=False)
+
+    user = relationship("UserModel")
+
+    __table_args__ = (
+        Index("ix_refresh_tokens_user_id_revoked", "user_id", "revoked"),
+    )
+
+    def __repr__(self):
+        return f"<RefreshTokenModel(id='{self.id}', user_id='{self.user_id}', revoked={self.revoked})>"
 
 
 # Tracks ingested files, extraction state, chunk counts, and KB versions.

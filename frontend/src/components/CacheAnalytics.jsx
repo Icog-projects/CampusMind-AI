@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 
 export const CacheAnalytics = ({ onNavigate }) => {
-  const { token, API_BASE_URL } = useAuth();
+  const { token, authFetch, API_BASE_URL } = useAuth();
   const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [updatingPolicy, setUpdatingPolicy] = useState(false);
@@ -13,9 +13,8 @@ export const CacheAnalytics = ({ onNavigate }) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE_URL}/metrics/cache`, {
+      const res = await authFetch(`${API_BASE_URL}/metrics/cache`, {
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       });
@@ -41,10 +40,9 @@ export const CacheAnalytics = ({ onNavigate }) => {
     setError(null);
     setSuccessMsg(null);
     try {
-      const res = await fetch(`${API_BASE_URL}/metrics/cache/policy`, {
+      const res = await authFetch(`${API_BASE_URL}/metrics/cache/policy`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ policy: newPolicy }),
@@ -89,9 +87,6 @@ export const CacheAnalytics = ({ onNavigate }) => {
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
             Cache Analytics
           </h1>
-          <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
-            Query traffic, performance, and Redis memory eviction management.
-          </p>
         </div>
 
         <button
@@ -129,11 +124,10 @@ export const CacheAnalytics = ({ onNavigate }) => {
         {/* Metric 1: Total Queries */}
         <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs">
           <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-            Total Inquiries
+            Total Queries
           </div>
           <div className="mt-2 flex items-baseline space-x-2">
             <span className="text-2xl sm:text-3xl font-extrabold text-slate-900">{totalQueries}</span>
-            <span className="text-xs text-slate-400">queries</span>
           </div>
         </div>
 
@@ -144,9 +138,6 @@ export const CacheAnalytics = ({ onNavigate }) => {
           </div>
           <div className="mt-2 flex items-baseline space-x-2">
             <span className="text-2xl sm:text-3xl font-extrabold text-emerald-600">{hits}</span>
-            <span className="text-xs text-emerald-700 font-medium bg-emerald-50 px-1.5 py-0.5 rounded">
-              Fast Path
-            </span>
           </div>
         </div>
 
@@ -157,7 +148,6 @@ export const CacheAnalytics = ({ onNavigate }) => {
           </div>
           <div className="mt-2 flex items-baseline space-x-2">
             <span className="text-2xl sm:text-3xl font-extrabold text-amber-600">{misses}</span>
-            <span className="text-xs text-slate-500">Direct Lookup</span>
           </div>
         </div>
 
@@ -168,9 +158,6 @@ export const CacheAnalytics = ({ onNavigate }) => {
           </div>
           <div className="mt-2 flex items-baseline space-x-2">
             <span className="text-2xl sm:text-3xl font-extrabold text-indigo-600">{llmSaved}</span>
-            <span className="text-xs text-emerald-700 font-medium bg-emerald-50 px-1.5 py-0.5 rounded">
-              Saved
-            </span>
           </div>
         </div>
       </div>
@@ -180,11 +167,10 @@ export const CacheAnalytics = ({ onNavigate }) => {
         {/* Card 1: Hit Ratio Breakdown */}
         <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between">
           <div>
-            <h2 className="text-sm sm:text-base font-bold text-slate-900 mb-1">Cache Hit Efficiency</h2>
-            <p className="text-xs text-slate-500 mb-4">Percentage of student queries served directly from Redis</p>
+            <h2 className="text-sm sm:text-base font-bold text-slate-900 mb-1">Hit Rate</h2>
 
-            <div className="flex justify-between text-xs font-semibold text-slate-700 mb-1.5">
-              <span>Hit Rate</span>
+            <div className="flex justify-between text-xs font-semibold text-slate-700 mb-1.5 mt-3">
+              <span>Ratio</span>
               <span>{hitRate}%</span>
             </div>
             <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
@@ -211,16 +197,13 @@ export const CacheAnalytics = ({ onNavigate }) => {
         {/* Card 2: Memory & Eviction Policy Management */}
         <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs">
           <div className="flex items-center justify-between mb-1">
-            <h2 className="text-sm sm:text-base font-bold text-slate-900">Redis Memory & Eviction</h2>
+            <h2 className="text-sm sm:text-base font-bold text-slate-900">Memory & Eviction</h2>
             <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
-              TTL: {ttlSeconds}s ({ttlSeconds / 60}m)
+              TTL: {ttlSeconds}s
             </span>
           </div>
-          <p className="text-xs text-slate-500 mb-4">
-            Memory limits govern key eviction when capacity is reached, while TTL governs answer freshness.
-          </p>
 
-          <div className="grid grid-cols-2 gap-3 mb-4">
+          <div className="grid grid-cols-2 gap-3 mb-4 mt-4">
             <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
               <div className="text-[11px] font-semibold text-slate-500 uppercase">Memory Used</div>
               <div className="text-base sm:text-lg font-bold text-slate-900 mt-0.5 font-mono">{usedMemory}</div>
@@ -245,8 +228,8 @@ export const CacheAnalytics = ({ onNavigate }) => {
                 onClick={() => handlePolicyChange('allkeys-lru')}
                 disabled={updatingPolicy || currentPolicy === 'allkeys-lru'}
                 className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-all text-center ${currentPolicy === 'allkeys-lru'
-                    ? 'bg-blue-600 text-white border-blue-600 shadow-xs cursor-default'
-                    : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-300'
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-xs cursor-default'
+                  : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-300'
                   }`}
               >
                 LRU (Least Recently Used)
@@ -257,8 +240,8 @@ export const CacheAnalytics = ({ onNavigate }) => {
                 onClick={() => handlePolicyChange('allkeys-lfu')}
                 disabled={updatingPolicy || currentPolicy === 'allkeys-lfu'}
                 className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-all text-center ${currentPolicy === 'allkeys-lfu'
-                    ? 'bg-blue-600 text-white border-blue-600 shadow-xs cursor-default'
-                    : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-300'
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-xs cursor-default'
+                  : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-300'
                   }`}
               >
                 LFU (Least Frequently Used)

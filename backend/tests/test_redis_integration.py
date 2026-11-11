@@ -315,3 +315,68 @@ def test_real_redis_failure_fallback():
     assert "Midnight" in result.answer
     assert mock_hybrid.search.call_count == 1
     assert mock_llm.generate.call_count == 1
+
+
+def test_real_redis_eviction_lru_and_lfu():
+    """
+    Verifies that real Redis actually performs LRU and LFU evictions under memory pressure
+    in an isolated database without touching production keys.
+    """
+    # Use isolated DB 15
+    r = redis.Redis(host="localhost", port=6379, db=15, decode_responses=True)
+    r.flushdb()
+    orig_maxmemory = r.config_get("maxmemory").get("maxmemory")
+    orig_policy = r.config_get("maxmemory-policy").get("maxmemory-policy")
+
+    try:
+        # 1. LRU Eviction Test
+        base = r.info("memory")["used_memory"]
+        limit = base + 175000
+        r.config_set("maxmemory", str(limit))
+        r.config_set("maxmemory-policy", "allkeys-lru")
+        r.config_set("maxmemory-samples", "10")
+
+        chunk = "A" * 50000
+        r.set("test_lru:k1", chunk)
+        r.set("test_lru:k2", chunk)
+        time.sleep(2)
+        # Touch k1 so k2 becomes least recently used
+        _ = r.get("test_lru:k1")
+
+        # Exceed limit with k3
+        r.set("test_lru:k3", chunk)
+        assert r.exists("test_lru:k2") == 0, "LRU must evict idle key k2"
+        assert r.exists("test_lru:k1") == 1, "LRU must retain recently touched key k1"
+        assert r.exists("test_lru:k3") == 1, "LRU must store new key k3"
+
+        # 2. LFU Eviction Test
+        r.flushdb()
+        base = r.info("memory")["used_memory"]
+        limit = base + 170000
+        r.config_set("maxmemory", str(limit))
+        r.config_set("maxmemory-policy", "allkeys-lfu")
+        r.config_set("maxmemory-samples", "10")
+
+        r.set("test_lfu:infrequent", chunk)
+        r.set("test_lfu:frequent", chunk)
+
+        for _ in range(100):
+            _ = r.get("test_lfu:frequent")
+        _ = r.get("test_lfu:infrequent")
+
+        r.set("test_lfu:k3", chunk)
+        assert r.exists("test_lfu:infrequent") == 0, "LFU must evict infrequent key"
+        assert r.exists("test_lfu:frequent") == 1, "LFU must retain frequent key"
+        assert r.exists("test_lfu:k3") == 1, "LFU must store new key k3"
+
+        # 3. Independent TTL Expiration Test
+        r.set("test_ttl:ephemeral", "val", ex=1)
+        assert r.exists("test_ttl:ephemeral") == 1
+        time.sleep(1.2)
+        assert r.exists("test_ttl:ephemeral") == 0, "TTL must expire key independently"
+
+    finally:
+        r.flushdb()
+        r.config_set("maxmemory", orig_maxmemory)
+        r.config_set("maxmemory-policy", orig_policy)
+

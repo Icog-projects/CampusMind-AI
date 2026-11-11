@@ -6,16 +6,18 @@ Implements FastAPI endpoints for authentication, documents, chat operations, and
 Responsibilities:
 1. get_rag_service(): Provides the singleton RAGService orchestrator instance.
 2. register(): Handles user registration requests and hashes user passwords.
-3. login(): Authenticates user credentials and issues signed JWT access tokens.
-4. get_me(): Returns the authenticated user's profile details.
-5. upload_document(): Ingests, chunks, embeds, and indexes an uploaded document.
-6. list_documents(): Retrieves paginated document records from the database.
-7. ask_question(): Processes chat questions through the grounded RAG pipeline.
-8. list_chat_sessions(): Lists chat sessions owned by the authenticated user.
-9. get_chat_history(): Returns stored message history for a specific conversation session.
-10. health_check(): Reports operational status of MySQL, Redis, and Qdrant dependencies.
-11. get_cache_metrics(): Computes cache hit/miss telemetry, avoided LLM inference, and memory stats.
-12. update_cache_policy(): Switches active Redis eviction policy between allkeys-lru and allkeys-lfu.
+3. login(): Authenticates user credentials and issues signed JWT access and refresh tokens.
+4. refresh_token(): Automatically renews expired access tokens using a valid refresh token.
+5. logout(): Revokes user refresh token sessions on logout.
+6. get_me(): Returns the authenticated user's profile details.
+7. upload_document(): Ingests, chunks, embeds, and indexes an uploaded document.
+8. list_documents(): Retrieves paginated document records from the database.
+9. ask_question(): Processes chat questions through the grounded RAG pipeline.
+10. list_chat_sessions(): Lists chat sessions owned by the authenticated user.
+11. get_chat_history(): Returns stored message history for a specific conversation session.
+12. health_check(): Reports operational status of MySQL, Redis, and Qdrant dependencies.
+13. get_cache_metrics(): Computes cache hit/miss telemetry, avoided LLM inference, and memory stats.
+14. update_cache_policy(): Switches active Redis eviction policy between allkeys-lru and allkeys-lfu.
 """
 
 import os
@@ -25,15 +27,28 @@ from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, s
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
+from datetime import datetime, timedelta, timezone
 from app.core.database import get_db_session
-from app.core.security import hash_password, verify_password, create_access_token
+from app.core.security import (
+    hash_password,
+    verify_password,
+    create_access_token,
+    generate_refresh_token,
+    hash_token,
+    get_refresh_token_expire_days,
+)
 from app.core.auth import (
     get_current_user,
     require_admin,
     require_authenticated_user,
 )
-from app.models.db_models import UserModel
-from app.repositories.database_repository import UserRepository, DocumentRepository, ChatRepository
+from app.models.db_models import UserModel, utc_now
+from app.repositories.database_repository import (
+    UserRepository,
+    RefreshTokenRepository,
+    DocumentRepository,
+    ChatRepository,
+)
 from app.services.ingestion_service import IngestionService
 from app.services.chat_service import ChatService
 from app.services.rag_service import RAGService
@@ -49,6 +64,8 @@ from app.schemas.api_schemas import (
     UserLoginRequest,
     UserResponse,
     TokenResponse,
+    RefreshTokenRequest,
+    LogoutRequest,
     DocumentResponse,
     DocumentUploadResponse,
     ChatAskRequest,
@@ -171,11 +188,93 @@ def login(
         role=user.role,
     )
 
+    # Issue long-lived secure refresh token persisted in MySQL
+    raw_refresh_token = generate_refresh_token()
+    token_hash = hash_token(raw_refresh_token)
+    expire_days = get_refresh_token_expire_days()
+    refresh_expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=expire_days)
+
+    refresh_repo = RefreshTokenRepository(db)
+    refresh_repo.create_token(
+        user_id=user.id,
+        token_hash=token_hash,
+        expires_at=refresh_expires_at,
+    )
+
     return TokenResponse(
         access_token=access_token,
         token_type="bearer",
+        refresh_token=raw_refresh_token,
         user=UserResponse.model_validate(user),
     )
+
+
+@router.post(
+    "/auth/refresh",
+    response_model=TokenResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Renew expired access token using valid refresh token",
+    tags=["Authentication"],
+)
+# Automatically renews expired access tokens using a valid refresh token.
+def refresh_token(
+    req: RefreshTokenRequest,
+    db: Session = Depends(get_db_session),
+):
+    refresh_repo = RefreshTokenRepository(db)
+    token_hash = hash_token(req.refresh_token)
+    token_record = refresh_repo.get_valid_token(token_hash)
+
+    if not token_record:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid, expired, or revoked refresh token. Please sign in again.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user_repo = UserRepository(db)
+    user = user_repo.get_by_id(token_record.user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User associated with refresh token no longer exists.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Issue renewed short-lived access token
+    new_access_token = create_access_token(
+        user_id=user.id,
+        email=user.email,
+        role=user.role,
+    )
+
+    return TokenResponse(
+        access_token=new_access_token,
+        token_type="bearer",
+        refresh_token=req.refresh_token,
+        user=UserResponse.model_validate(user),
+    )
+
+
+@router.post(
+    "/auth/logout",
+    status_code=status.HTTP_200_OK,
+    summary="Logout user and invalidate refresh token session",
+    tags=["Authentication"],
+)
+# Revokes user refresh token sessions on logout.
+def logout(
+    req: Optional[LogoutRequest] = None,
+    current_user: Optional[UserModel] = Depends(require_authenticated_user),
+    db: Session = Depends(get_db_session),
+):
+    refresh_repo = RefreshTokenRepository(db)
+    if req and req.refresh_token:
+        refresh_repo.revoke_token(hash_token(req.refresh_token))
+    elif current_user:
+        refresh_repo.revoke_all_for_user(current_user.id)
+
+    return {"message": "Session logged out and refresh token revoked successfully."}
 
 
 @router.get(
