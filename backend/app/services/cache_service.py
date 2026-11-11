@@ -12,8 +12,9 @@ Class RedisCacheService:
 6. RedisCacheService.get_cache_info(): Retrieves live Redis memory stats, active policy, and configured limits.
 7. RedisCacheService.get_answer(): Retrieves cached grounded answer if present.
 8. RedisCacheService.set_answer(): Stores serialized grounded answer with TTL into Redis.
-9. RedisCacheService.update_kb_version(): Updates knowledge-base version to invalidate prior cache entries.
-10. RedisCacheService.delete_scope_answer(): Deletes specific cached answer entry by query and scope.
+9. RedisCacheService.get_answer_by_key(): Retrieves cached grounded answer directly by its Redis cache key.
+10. RedisCacheService.update_kb_version(): Updates knowledge-base version to invalidate prior cache entries.
+11. RedisCacheService.delete_scope_answer(): Deletes specific cached answer entry by query and scope.
 """
 
 import os
@@ -251,6 +252,25 @@ class RedisCacheService:
         except Exception as e:
             logger.warning("Redis set error for key %s: %s", cache_key, e)
             return False
+
+    # Retrieves a cached GroundedAnswer directly by its Redis cache key.
+    def get_answer_by_key(self, cache_key: str) -> Optional[GroundedAnswer]:
+        if not cache_key:
+            return None
+        cli = self.client
+        if cli is None:
+            return None
+        try:
+            cached_data = cli.get(cache_key)
+            if not cached_data:
+                return None
+            payload = json.loads(cached_data)
+            answer = GroundedAnswer.model_validate(payload)
+            logger.info("Cache hit for direct key: %s", cache_key)
+            return answer
+        except Exception as e:
+            logger.warning("Redis get error for direct key %s: %s", cache_key, e)
+            return None
 
     # Updates the active knowledge-base version for instant cache invalidation.
     def update_kb_version(self, new_version: str):

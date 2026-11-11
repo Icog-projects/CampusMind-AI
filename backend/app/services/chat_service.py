@@ -64,7 +64,19 @@ class ChatService:
         # Step 3: Check cache status before RAG query to record accurate cache-hit flag
         is_hit = False
         try:
+            # Check exact cache first
             is_hit = self.rag_service.cache_service.get_answer(question=question, scope=scope) is not None
+            # If not exact hit, check semantic cache
+            if not is_hit and getattr(self.rag_service, "semantic_cache_service", None) and getattr(self.rag_service, "embedding_service", None):
+                q_vec = self.rag_service.embedding_service.embed_query(question.strip())
+                kb_ver = getattr(self.rag_service.cache_service, "kb_version", "v1")
+                sem_hit = self.rag_service.semantic_cache_service.search_similar(
+                    query_vector=q_vec,
+                    scope=scope,
+                    kb_version=kb_ver,
+                )
+                if sem_hit and sem_hit.get("cache_key"):
+                    is_hit = self.rag_service.cache_service.get_answer_by_key(sem_hit["cache_key"]) is not None
         except Exception as e:
             logger.warning("Cache check error in ChatService: %s", e)
 

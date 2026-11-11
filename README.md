@@ -7,7 +7,7 @@
 </a>
 
 <p align="center">
-  <strong>Production-ready university knowledge assistant delivering verifiable, grounded answers from institutional documents using Hybrid RAG (Qdrant + BM25 + RRF), Groq LLM inference, and high-performance Redis answer caching.</strong>
+  <strong>Production-ready university knowledge assistant delivering verifiable, grounded answers from institutional documents using Hybrid RAG (Qdrant + BM25 + RRF + BGE Cross-Encoder Reranker), Groq LLM inference, and high-performance Redis answer caching.</strong>
 </p>
 
 <p align="center">
@@ -29,7 +29,7 @@
   <img src="https://img.shields.io/badge/Qdrant-DC2626?style=for-the-badge&logo=qdrant&logoColor=white" alt="Qdrant" />
   <img src="https://img.shields.io/badge/MySQL-4479A1?style=for-the-badge&logo=mysql&logoColor=white" alt="MySQL" />
   <img src="https://img.shields.io/badge/Groq_Cloud-F55036?style=for-the-badge&logo=groq&logoColor=white" alt="Groq" />
-  <img src="https://img.shields.io/badge/Tests-108_Passing-22C55E?style=for-the-badge&logo=pytest&logoColor=white" alt="Pytest" />
+  <img src="https://img.shields.io/badge/Tests-113_Passing-22C55E?style=for-the-badge&logo=pytest&logoColor=white" alt="Pytest" />
 </p>
 
 </div>
@@ -80,7 +80,7 @@ Caching read strategies dictate whether the application orchestrates cache looku
 | **Appropriate Scenarios** | Heavy, heterogeneous computations, RAG inference, multi-source aggregations | Standard CRUD applications with strict 1:1 relational mappings |
 
 > **CampusMind AI Architectural Choice**:  
-> CampusMind AI utilizes **Cache-Aside**. The FastAPI service layer queries Redis using a deterministic question key. On a cache miss, the system executes the multi-stage RAG pipeline (embedding calculation, BM25 keyword retrieval, Qdrant dense vector search, Reciprocal Rank Fusion, and Groq LLM generation). Upon confirming sufficient grounding context, the application formats the serialized answer and populates Redis. If Redis is unavailable or times out, the application executes graceful fail-soft degradation without throwing fatal exceptions.
+> CampusMind AI utilizes **Cache-Aside**. The FastAPI service layer queries Redis using a deterministic question key. On a cache miss, the system executes the multi-stage RAG pipeline (embedding calculation, BM25 keyword retrieval, Qdrant dense vector search, Reciprocal Rank Fusion, Cross-Encoder reranking, and Groq LLM generation). Upon confirming sufficient grounding context, the application formats the serialized answer and populates Redis. If Redis is unavailable or times out, the application executes graceful fail-soft degradation without throwing fatal exceptions.
 
 ---
 
@@ -188,7 +188,8 @@ CampusMind AI is an enterprise-grade academic knowledge platform designed to pro
 - **Multi-Format Ingestion**: Ingests unstructured academic regulations, faculty handbooks, course syllabi, and administrative policies across PDF (`.pdf`), Microsoft Word (`.docx`), and Plain Text (`.txt`).
 - **Configurable Chunking Pipeline**: Supports Fixed-Size (500 tokens), Recursive Structural Chunking (via LangChain), and Semantic Similarity-based chunking with metadata preservation (file name, page number, chunk ID).
 - **Hybrid Vector + Keyword Search**: Dense cosine vector embeddings (`BAAI/bge-small-en-v1.5`, 384 dimensions) indexed in Qdrant combined with sparse lexical indexing via BM25Okapi.
-- **Reciprocal Rank Fusion (RRF)**: Re-ranks hybrid search candidates using $RRF(d) = \sum \frac{1}{60 + r(d)}$ to achieve robust precision and recall across keyword and conceptual queries.
+- **Reciprocal Rank Fusion (RRF)**: Merges hybrid search candidates using $RRF(d) = \sum \frac{1}{60 + r(d)}$ to achieve robust precision and recall across keyword and conceptual queries.
+- **Cross-Encoder Reranking (`BAAI/bge-reranker-base`)**: Post-RRF cross-attention neural reranking that scores full query-chunk pairs, discarding low-relevance candidates and returning the Top-K most relevant chunks to the LLM.
 - **Strictly Grounded LLM Inference**: Groq-hosted open LLM generation (`openai/gpt-oss-120b`) constrained by system prompts that require direct inline citations (`[1]`, `[2]`) and reject ungrounded hallucinations.
 - **Interactive Citation Inspector**: Frontend message cards provide structured citation chips displaying exact document source titles, chunk coordinates, and contextual text excerpts.
 - **High-Performance Answer Caching**: Redis-backed cache-aside layer eliminating 98%+ of inference latency on repeat and semantically identical queries.
@@ -221,7 +222,8 @@ flowchart TD
         F --> K["BM25 Top-K Candidates"]
         J --> L["Reciprocal Rank Fusion (RRF)"]
         K --> L
-        L --> M["Top Scored Grounded Chunks"]
+        L --> RR["Cross-Encoder Reranker (BAAI/bge-reranker-base)"]
+        RR --> M["Top Scored Grounded Chunks"]
     end
 
     subgraph Synthesis["3. Grounded Synthesis"]
@@ -249,7 +251,7 @@ flowchart TD
     H --> D["Deserialize GroundedAnswer & Source Citations"]
     D --> B["Return Instant Answer (Sub-millisecond ~0.5ms) [Cached Badge]"]
     
-    R -->|"Cache Miss"| M["Execute Hybrid RAG Pipeline (Qdrant + BM25 + Groq LLM)"]
+    R -->|"Cache Miss"| M["Execute Pipeline (Qdrant + BM25 + RRF + BGE Reranker + Groq LLM)"]
     R -->|"Redis Unavailable / Timeout"| F["Fail-Soft Fallback: Log Warning & Bypass Cache"]
     F --> M
     
@@ -281,6 +283,7 @@ $$\text{Key} = \text{namespace} : \text{scope} : \text{kb\_version} : \text{SHA2
 - **In-Memory Cache**: Redis `8.1.0` client connecting to Redis Server `7.x`.
 - **Vector Database**: Qdrant Client `1.20.0` (HNSW indexing, Cosine similarity).
 - **Embeddings**: HuggingFace `sentence-transformers` (`BAAI/bge-small-en-v1.5`, 384 dimensions).
+- **Cross-Encoder Reranker**: `sentence-transformers` CrossEncoder (`BAAI/bge-reranker-base`).
 - **Text Extraction**: PyMuPDF `1.25.3` (PDF) and `python-docx` `1.1.2` (Word).
 - **Lexical Search**: `rank-bm25` `0.2.2` (BM25Okapi ranking).
 - **LLM Engine**: Groq Cloud SDK `1.7.0` running `openai/gpt-oss-120b`.
@@ -326,7 +329,8 @@ CampusMind-AI/
 │   │   │   ├── hybrid_retrieval.py    # Reciprocal Rank Fusion of BM25 and Qdrant
 │   │   │   ├── ingestion_service.py   # Multi-stage extraction, chunking, and indexing
 │   │   │   ├── llm_service.py         # Base Groq client wrapper
-│   │   │   ├── rag_service.py         # End-to-end RAG orchestrator with cache integration
+│   │   │   ├── rag_service.py         # End-to-end RAG orchestrator with reranking and cache integration
+│   │   │   ├── reranking_service.py   # BAAI/bge-reranker-base CrossEncoder reranker
 │   │   │   ├── retrieval_bm25.py      # BM25Okapi lexical retrieval
 │   │   │   ├── vector_store.py        # Qdrant client collection management and queries
 │   │   │   └── __init__.py
@@ -342,7 +346,7 @@ CampusMind-AI/
 │   │   ├── report_generator.py        # Markdown benchmark report generation
 │   │   ├── run_eval.py                # Command-line benchmark runner
 │   │   └── results/                   # Verified evaluation reports and CSV logs
-│   ├── tests/                         # Pytest test suite (108 unit & integration tests)
+│   ├── tests/                         # Pytest test suite (113 unit & integration tests)
 │   ├── storage/uploads/               # Uploaded document filesystem storage
 │   ├── requirements.txt               # Backend Python dependencies
 │   ├── .env.example                   # Environment configuration template
@@ -538,7 +542,7 @@ CampusMind AI maintains an automated test suite verifying all critical component
 pytest tests/ -v
 ```
 
-**Verified Test Coverage (108/108 Tests Passing)**:
+**Verified Test Coverage (113/113 Tests Passing)**:
 - `test_api_endpoints.py`: Verifies authentication routes, document handling, and chat workflows.
 - `test_auth_and_rbac.py`: Verifies password hashing, token signatures, role enforcement, and resource isolation.
 - `test_token_renewal.py`: Verifies access-token expiration, seamless renewal, invalid token rejection, and logout revocation.
@@ -551,7 +555,8 @@ pytest tests/ -v
 - `test_evaluation.py`: Verifies calculation of Recall@K and MRR metrics.
 - `test_generation.py`: Verifies citation parsing, context injection, and grounding validation.
 - `test_hybrid_retrieval.py`: Verifies reciprocal rank fusion scoring ($1/(60 + \text{rank})$).
-- `test_rag_service.py`: Verifies end-to-end RAG query flow and cache integration.
+- `test_reranking.py`: Verifies CrossEncoder model loading, pair scoring, metadata preservation, empty candidate handling, and Top-K filtering.
+- `test_rag_service.py`: Verifies end-to-end RAG query flow, reranker integration, and cache integration.
 - `test_redis_integration.py`: Verifies live Redis operations, including real memory pressure eviction under LRU and LFU.
 - `test_vector_store.py`: Verifies Qdrant collection creation, payload indexing, and search.
 
@@ -597,10 +602,10 @@ The system was evaluated against a standard 25-question golden benchmark set acr
 
 ## Limitations and Future Improvements
 
-- **Cross-Encoder Re-Ranking**: Implementing a secondary cross-encoder re-ranking step (e.g., `bge-reranker-base`) would refine the Top-K candidates delivered to the LLM, at the expense of 20–40 ms of additional retrieval latency.
 - **Dynamic Semantic Caching**: The current cache uses normalized exact SHA-256 matching. Integrating vector similarity-based cache lookups (using a lightweight Qdrant cache collection with cosine similarity thresholds $\ge 0.95$) could improve hit rates for rephrased queries.
 - **Asynchronous Document Processing**: Processing large multi-hundred-page documents currently occurs synchronously. Offloading ingestion to a Celery or ARQ background task queue would improve client responsiveness on heavy uploads.
 - **Distributed Lock during Cache Population**: Under extreme concurrency, simultaneous misses for the same query could trigger duplicate LLM calls before the first response caches. Adding a Redis distributed lock (`redlock`) would prevent these redundant calls.
+- **Multi-Modal Document Extraction**: Expanding ingestion to parse embedded tables, charts, and diagrams using vision models or specialized layout parsers would broaden knowledge coverage.
 
 ---
 

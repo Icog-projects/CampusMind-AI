@@ -93,6 +93,7 @@ def get_rag_service() -> RAGService:
     if _shared_rag_service is None:
         from app.services.embedding_service import EmbeddingService
         from app.services.vector_store import VectorStoreService
+        from app.services.semantic_cache_service import SemanticCacheService
         from app.services.retrieval_bm25 import BM25RetrievalService
         from app.services.hybrid_retrieval import HybridRetrievalService
         from app.services.reranking_service import RerankingService
@@ -100,6 +101,7 @@ def get_rag_service() -> RAGService:
 
         embed_svc = EmbeddingService()
         vec_store = VectorStoreService()
+        semantic_cache_svc = SemanticCacheService(qdrant_client=vec_store.client)
         bm25_svc = BM25RetrievalService()
         hybrid_svc = HybridRetrievalService(bm25_service=bm25_svc, vector_store=vec_store)
         rerank_svc = RerankingService()
@@ -107,6 +109,7 @@ def get_rag_service() -> RAGService:
 
         _shared_rag_service = RAGService(
             embedding_service=embed_svc,
+            semantic_cache_service=semantic_cache_svc,
             hybrid_retrieval_service=hybrid_svc,
             reranking_service=rerank_svc,
             generation_service=gen_svc,
