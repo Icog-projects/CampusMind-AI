@@ -1,10 +1,10 @@
 """CampusMind AI - RAG Orchestration Service.
 
-Coordinates cache lookup, query embedding, hybrid retrieval, and grounded generation.
+Coordinates cache lookup, query embedding, hybrid retrieval, reranking, and grounded generation.
 
 Responsibilities:
 Class RAGService:
-1. RAGService.__init__(): Initializes the orchestrator with cache, embedding, retrieval, and generation services.
+1. RAGService.__init__(): Initializes the orchestrator with cache, embedding, retrieval, reranking, and generation services.
 2. RAGService.query(): Executes the complete cache-aside RAG pipeline for a user question.
 3. RAGService.invalidate_knowledge_base(): Rotates knowledge-base version to invalidate cached answers.
 """
@@ -16,12 +16,13 @@ from app.schemas.chunk import GroundedAnswer, ScoredChunk
 from app.services.cache_service import RedisCacheService, DEFAULT_ACCESS_SCOPE
 from app.services.embedding_service import EmbeddingService
 from app.services.hybrid_retrieval import HybridRetrievalService
+from app.services.reranking_service import RerankingService
 from app.services.generation_service import GenerationService
 
 logger = logging.getLogger(__name__)
 
 
-# End-to-end RAG orchestrator integrating Cache, Embedding, Hybrid Retrieval, and Generation.
+# End-to-end RAG orchestrator integrating Cache, Embedding, Hybrid Retrieval, Reranking, and Generation.
 class RAGService:
 
     # Initializes the RAGService with required dependencies.
@@ -30,11 +31,13 @@ class RAGService:
         cache_service: Optional[RedisCacheService] = None,
         embedding_service: Optional[EmbeddingService] = None,
         hybrid_retrieval_service: Optional[HybridRetrievalService] = None,
+        reranking_service: Optional[RerankingService] = None,
         generation_service: Optional[GenerationService] = None,
     ):
         self.cache_service = cache_service or RedisCacheService()
         self.embedding_service = embedding_service
         self.hybrid_retrieval_service = hybrid_retrieval_service
+        self.reranking_service = reranking_service
         self.generation_service = generation_service or GenerationService()
 
     # Processes a user query end-to-end with cache-aside lookup and hybrid retrieval.
@@ -80,17 +83,33 @@ class RAGService:
         retrieved_chunks: Sequence[ScoredChunk] = []
         if self.hybrid_retrieval_service is not None:
             try:
+                # If reranking service is configured, retrieve a broader pool (up to 20 or top_k * 2)
+                candidate_k = max(top_k * 2, 10) if self.reranking_service is not None else top_k
                 retrieved_chunks = self.hybrid_retrieval_service.search(
                     query=cleaned_question,
                     query_vector=query_vector,
-                    top_k=top_k,
+                    top_k=candidate_k,
                     filter_document_id=filter_document_id,
                 )
             except Exception as e:
                 logger.warning("Hybrid retrieval failed: %s", e)
                 retrieved_chunks = []
 
-        # Step 4: Grounded Generation with citation mapping
+        # Step 4: Reranking with CrossEncoder (runs only on cache misses)
+        if self.reranking_service is not None and retrieved_chunks:
+            try:
+                retrieved_chunks = self.reranking_service.rerank(
+                    query=cleaned_question,
+                    candidates=retrieved_chunks,
+                    top_k=top_k,
+                )
+            except Exception as e:
+                logger.warning("Reranking failed, using original retrieval order: %s", e)
+                retrieved_chunks = retrieved_chunks[:top_k]
+        else:
+            retrieved_chunks = retrieved_chunks[:top_k]
+
+        # Step 5: Grounded Generation with citation mapping
         answer = self.generation_service.generate_answer(
             question=cleaned_question,
             retrieved_chunks=retrieved_chunks,
@@ -98,7 +117,7 @@ class RAGService:
             max_tokens=max_tokens,
         )
 
-        # Step 5: Cache only successful grounded answers with sufficient context
+        # Step 6: Cache only successful grounded answers with sufficient context
         if answer.has_sufficient_context and answer.sources:
             try:
                 self.cache_service.set_answer(
