@@ -3,8 +3,12 @@
 # CampusMind AI
 
 <a href="https://git.io/typing-svg">
-  <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=600&size=24&pause=1000&color=2563EB&center=true&vCenter=true&width=620&lines=CampusMind+AI;Intelligent+University+Knowledge+Assistant;Retrieval-Augmented+Generation+%2B+Redis+Caching;Verified+Document+Grounding+%26+Sub-Millisecond+Cache" alt="Typing SVG" />
+  <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=700&size=28&duration=2800&pause=1100&color=2563EB&multiline=false&center=true&vCenter=true&repeat=true&width=740&height=50&lines=CampusMind+AI;Intelligent+University+Knowledge+Assistant;RAG+%E2%80%A2+Hybrid+Search+%E2%80%A2+Semantic+Caching;Powered+by+AI" alt="CampusMind AI - Intelligent University Knowledge Assistant - RAG • Hybrid Search • Semantic Caching - Powered by AI" />
 </a>
+
+<p align="center">
+  <img src="https://capsule-render.vercel.app/api?type=rect&color=gradient&customColorList=1,2,3,4&bg_color=2563eb,7c3aed,06b6d4&height=4&section=header" alt="Gradient Border" width="740" />
+</p>
 
 <p align="center">
   <strong>Production-ready university knowledge assistant delivering verifiable, grounded answers from institutional documents using Hybrid RAG (Qdrant + BM25 + RRF + BGE Cross-Encoder Reranker), Groq LLM inference, and high-performance Redis answer caching.</strong>
