@@ -29,7 +29,7 @@
   <img src="https://img.shields.io/badge/Qdrant-DC2626?style=for-the-badge&logo=qdrant&logoColor=white" alt="Qdrant" />
   <img src="https://img.shields.io/badge/MySQL-4479A1?style=for-the-badge&logo=mysql&logoColor=white" alt="MySQL" />
   <img src="https://img.shields.io/badge/Groq_Cloud-F55036?style=for-the-badge&logo=groq&logoColor=white" alt="Groq" />
-  <img src="https://img.shields.io/badge/Tests-113_Passing-22C55E?style=for-the-badge&logo=pytest&logoColor=white" alt="Pytest" />
+  <img src="https://img.shields.io/badge/Tests-122_Passing-22C55E?style=for-the-badge&logo=pytest&logoColor=white" alt="Pytest" />
 </p>
 
 </div>
@@ -48,16 +48,17 @@
 - [2. Project Overview and Key Features](#project-overview-and-key-features)
 - [3. System Architecture and RAG Workflow](#system-architecture-and-rag-workflow)
 - [4. Redis Caching Architecture and Implementation](#redis-caching-architecture-and-implementation)
-- [5. Technology Stack](#technology-stack)
-- [6. Project Structure](#project-structure)
-- [7. Installation and Setup Instructions](#installation-and-setup-instructions)
-- [8. Environment Configuration](#environment-configuration)
-- [9. Running the Application](#running-the-application)
-- [10. API Endpoints](#api-endpoints)
-- [11. Testing and Evaluation](#testing-and-evaluation)
-- [12. Design Decisions and Trade-offs](#design-decisions-and-trade-offs)
-- [13. Limitations and Future Improvements](#limitations-and-future-improvements)
-- [14. Conclusion](#conclusion)
+- [5. Semantic Caching Architecture and Implementation](#semantic-caching-architecture-and-implementation)
+- [6. Technology Stack](#technology-stack)
+- [7. Project Structure](#project-structure)
+- [8. Installation and Setup Instructions](#installation-and-setup-instructions)
+- [9. Environment Configuration](#environment-configuration)
+- [10. Running the Application](#running-the-application)
+- [11. API Endpoints](#api-endpoints)
+- [12. Testing and Evaluation](#testing-and-evaluation)
+- [13. Design Decisions and Trade-offs](#design-decisions-and-trade-offs)
+- [14. Limitations and Future Improvements](#limitations-and-future-improvements)
+- [15. Conclusion](#conclusion)
 
 ---
 
@@ -192,7 +193,7 @@ CampusMind AI is an enterprise-grade academic knowledge platform designed to pro
 - **Cross-Encoder Reranking (`BAAI/bge-reranker-base`)**: Post-RRF cross-attention neural reranking that scores full query-chunk pairs, discarding low-relevance candidates and returning the Top-K most relevant chunks to the LLM.
 - **Strictly Grounded LLM Inference**: Groq-hosted open LLM generation (`openai/gpt-oss-120b`) constrained by system prompts that require direct inline citations (`[1]`, `[2]`) and reject ungrounded hallucinations.
 - **Interactive Citation Inspector**: Frontend message cards provide structured citation chips displaying exact document source titles, chunk coordinates, and contextual text excerpts.
-- **High-Performance Answer Caching**: Redis-backed cache-aside layer eliminating 98%+ of inference latency on repeat and semantically identical queries.
+- **High-Performance Multi-Tier Caching**: Two-tier caching combining exact SHA-256 Redis lookups (~0.5 ms) and vector-based semantic caching via Qdrant (`campusmind_semantic_cache`, default cosine threshold 0.90) to serve paraphrased questions without redundant LLM generation.
 - **Role-Based Access Control & Long-Lived Sessions**: Role enforcement across `student`, `staff`, and `admin` with secure JWT access tokens and database-backed refresh tokens for continuous session persistence.
 
 ---
@@ -251,12 +252,22 @@ flowchart TD
     H --> D["Deserialize GroundedAnswer & Source Citations"]
     D --> B["Return Instant Answer (Sub-millisecond ~0.5ms) [Cached Badge]"]
     
-    R -->|"Cache Miss"| M["Execute Pipeline (Qdrant + BM25 + RRF + BGE Reranker + Groq LLM)"]
+    R -->|"Cache Miss"| E["Generate Query Embedding (BAAI/bge-small-en-v1.5 384d)"]
+    E --> SC{"Check Qdrant Semantic Cache\n(campusmind_semantic_cache, cosine >= 0.90)"}
+    
+    SC -->|"Semantic Hit"| SH["Retrieve Redis Key from Top Qualifying Match"]
+    SH --> RK{"Key Present in Redis?"}
+    RK -->|"Yes"| D
+    RK -->|"No (Expired/Evicted)"| HR["Fallback: Execute Hybrid RAG Pipeline"]
+    
+    SC -->|"Semantic Miss"| HR
     R -->|"Redis Unavailable / Timeout"| F["Fail-Soft Fallback: Log Warning & Bypass Cache"]
-    F --> M
+    F --> HR
+    
+    HR --> M["Execute Pipeline (Reuse Embedding + BM25 + RRF + BGE Reranker + Groq LLM)"]
     
     M --> C{"Has Sufficient Context & Grounded?"}
-    C -->|"Yes"| S["Store Answer in Redis with TTL (default 1800s)"]
+    C -->|"Yes"| S["Store Answer in Redis (TTL: 1800s)\n& Store Vector + Key in Semantic Cache"]
     C -->|"No (Not Found / Low Confidence)"| NO["Do Not Cache (Bypass Storing Stale Negatives)"]
     S --> RET["Return Generated Response to User"]
     NO --> RET
@@ -271,6 +282,74 @@ $$\text{Key} = \text{namespace} : \text{scope} : \text{kb\_version} : \text{SHA2
 - **Access Scope**: `public` (accessible to students) or `all` (staff and administrators).
 - **Knowledge-Base Version**: Defaults to `v1`. Re-indexing updates the version string, logically invalidating previous answers without blocking database commands.
 - **Normalized Query**: Lowercased, stripped of leading/trailing whitespace, and collapsed of redundant internal whitespace before computing the SHA-256 digest.
+
+---
+
+## Semantic Caching Architecture and Implementation
+
+### Why Semantic Caching Is Needed
+Exact string-based Redis caching relies on SHA-256 digests of normalized query strings. While effective for identical or whitespace-normalized questions, it cannot recognize queries that convey identical intent with different wording (e.g., *"When is the library open?"* vs. *"What are the operating hours of the library?"*). 
+
+Without semantic caching, each paraphrased question triggers redundant vector retrieval, BM25 scoring, cross-encoder reranking, and expensive LLM inference. Semantic caching bridges this gap by mapping query meaning into dense vector space, allowing semantically equivalent questions to reuse existing grounded answers.
+
+### Architectural Separation: Qdrant vs. Redis
+To maintain high performance and separation of concerns:
+- **Qdrant Vector Database (`campusmind_semantic_cache`)**: Stores 384-dimensional query embeddings, deterministic Redis cache keys (`cache_key`), the original question string, `scope`, and `kb_version`. **Qdrant does NOT store the actual answer payload or source citations.**
+- **Redis In-Memory Cache**: Acts as the single source of truth for the serialized `GroundedAnswer` objects (including answers, token usage, and structured source citations). Redis manages expiration TTLs and memory eviction (LRU/LFU).
+
+### End-to-End Semantic Cache Flow
+
+```
+Incoming User Query
+         │
+         ▼
+1. Exact Redis Cache Lookup (SHA-256)
+   ├── Hit ──► Return GroundedAnswer immediately (~0.5 ms)
+   └── Miss ──►
+2. Generate Query Embedding via BGE-small (384 dimensions)
+         │
+         ▼
+3. Qdrant Semantic Cache Search (`campusmind_semantic_cache`)
+   - Payload Filters: `scope` == user_scope AND `kb_version` == current_version
+   - Cosine Similarity Threshold: `score >= SEMANTIC_CACHE_THRESHOLD` (default: 0.90)
+   - Candidate Selection: Qdrant retrieves the top qualifying candidate (`limit=1`)
+         │
+         ├── Match Found ──► Retrieve Answer from Redis using stored `cache_key`
+         │                     ├── Key Active in Redis ──► Return GroundedAnswer (Semantic Cache Hit)
+         │                     └── Key Expired or Evicted ──► Fall through to RAG Pipeline
+         │
+         └── No Match / Below Threshold ──► Fall through to RAG Pipeline
+                                                   │
+                                                   ▼
+4. Full RAG Pipeline Fallback
+   - Step A: Hybrid Retrieval (BM25 + Qdrant `campusmind_chunks`)
+     * Reuses the query embedding from Step 2 (zero duplicate embedding overhead)
+   - Step B: Reciprocal Rank Fusion (RRF)
+   - Step C: Cross-Encoder Reranking (`BAAI/bge-reranker-base`)
+   - Step D: Grounded LLM Generation (Groq `openai/gpt-oss-120b`)
+                                                   │
+                                                   ▼
+5. Dual Cache Population (Grounded Answers Only)
+   - If `has_sufficient_context` is True and `sources` are present:
+     * Store GroundedAnswer in Redis with TTL (default 1800s)
+     * Upsert (query_vector, cache_key, scope, kb_version) into `campusmind_semantic_cache`
+   - If answer is ungrounded / low confidence: Do not cache in Redis or Qdrant
+```
+
+### Dedicated Collection Specification
+- **Collection Name**: `campusmind_semantic_cache` (independent from the document chunk collection `campusmind_chunks`).
+- **Vector Dimension**: 384 (matches `BAAI/bge-small-en-v1.5`).
+- **Distance Metric**: Cosine distance (`rest.Distance.COSINE`). Because embeddings are L2 unit-normalized, the cosine similarity is the inner dot product:
+  $$\text{Cosine Similarity}(\mathbf{u}, \mathbf{v}) = \sum_{i=1}^{384} u_i v_i$$
+- **Access Scope & Version Isolation**: Queries are filtered strictly by `scope` (`public` vs `all`) and `kb_version` (`v1`). A student query cannot match a staff-cached question, and updating the knowledge-base version immediately invalidates previous semantic matches without requiring collection wipes.
+
+### Candidate Selection & Threshold Filtering
+- **Threshold**: Configured via `SEMANTIC_CACHE_THRESHOLD` (default: `0.90`).
+- **Engine-Level Filtering**: Filtering is applied directly inside Qdrant via `score_threshold=min_score`, evaluating as $\text{score} \ge \text{threshold}$. Candidates below the threshold are rejected by Qdrant before reaching Python.
+- **Top Match Selection**: In the current implementation, `SemanticCacheService.search_similar()` requests `limit=1` to select the single highest-scoring qualifying match.
+
+### Expired or Evicted Redis Entries
+If a question matches in Qdrant with high cosine similarity (e.g. `0.94`), but its corresponding Redis key has expired (past TTL) or was evicted by Redis memory pressure (`allkeys-lru`/`allkeys-lfu`), `cache_service.get_answer_by_key()` returns `None`. The orchestrator logs the expired entry and seamlessly falls through to the full RAG pipeline, generating a fresh grounded answer and re-populating both Redis and Qdrant.
 
 ---
 
@@ -320,7 +399,7 @@ CampusMind-AI/
 │   │   │   ├── chunk.py               # GroundedAnswer, ChunkMetadata, and SourceCitation schemas
 │   │   │   └── __init__.py
 │   │   ├── services/
-│   │   │   ├── cache_service.py       # RedisCacheService, SHA-256 keys, LRU/LFU controls
+│   │   │   ├── cache_service.py       # RedisCacheService, SHA-256 keys, direct key retrieval, LRU/LFU controls
 │   │   │   ├── chat_service.py        # Conversation persistence and chat orchestration
 │   │   │   ├── chunking_service.py    # Fixed, recursive, and semantic document splitters
 │   │   │   ├── document_extractor.py  # Multi-format text extraction (PDF, DOCX, TXT)
@@ -329,9 +408,10 @@ CampusMind-AI/
 │   │   │   ├── hybrid_retrieval.py    # Reciprocal Rank Fusion of BM25 and Qdrant
 │   │   │   ├── ingestion_service.py   # Multi-stage extraction, chunking, and indexing
 │   │   │   ├── llm_service.py         # Base Groq client wrapper
-│   │   │   ├── rag_service.py         # End-to-end RAG orchestrator with reranking and cache integration
+│   │   │   ├── rag_service.py         # End-to-end RAG orchestrator with exact + semantic cache integration
 │   │   │   ├── reranking_service.py   # BAAI/bge-reranker-base CrossEncoder reranker
 │   │   │   ├── retrieval_bm25.py      # BM25Okapi lexical retrieval
+│   │   │   ├── semantic_cache_service.py # Vector semantic caching (campusmind_semantic_cache in Qdrant)
 │   │   │   ├── vector_store.py        # Qdrant client collection management and queries
 │   │   │   └── __init__.py
 │   │   ├── main.py                    # FastAPI application instance and middleware configuration
@@ -346,7 +426,7 @@ CampusMind-AI/
 │   │   ├── report_generator.py        # Markdown benchmark report generation
 │   │   ├── run_eval.py                # Command-line benchmark runner
 │   │   └── results/                   # Verified evaluation reports and CSV logs
-│   ├── tests/                         # Pytest test suite (113 unit & integration tests)
+│   ├── tests/                         # Pytest test suite (122 unit & integration tests)
 │   ├── storage/uploads/               # Uploaded document filesystem storage
 │   ├── requirements.txt               # Backend Python dependencies
 │   ├── .env.example                   # Environment configuration template
@@ -457,6 +537,10 @@ REDIS_CACHE_TTL=1800
 REDIS_MAXMEMORY=100mb
 REDIS_EVICTION_POLICY=allkeys-lru
 
+# Semantic Cache Configuration (Qdrant)
+SEMANTIC_CACHE_THRESHOLD=0.90
+SEMANTIC_CACHE_COLLECTION=campusmind_semantic_cache
+
 # MySQL Relational Database
 MYSQL_HOST=localhost
 MYSQL_PORT=3306
@@ -542,12 +626,13 @@ CampusMind AI maintains an automated test suite verifying all critical component
 pytest tests/ -v
 ```
 
-**Verified Test Coverage (113/113 Tests Passing)**:
+**Verified Test Coverage (122/122 Tests Passing)**:
 - `test_api_endpoints.py`: Verifies authentication routes, document handling, and chat workflows.
 - `test_auth_and_rbac.py`: Verifies password hashing, token signatures, role enforcement, and resource isolation.
 - `test_token_renewal.py`: Verifies access-token expiration, seamless renewal, invalid token rejection, and logout revocation.
 - `test_bm25.py`: Verifies lexical tokenization, frequency scoring, and ranking.
 - `test_cache.py`: Verifies cache key normalization, serialization, TTL handling, and version scoping.
+- `test_semantic_cache.py`: Verifies Qdrant semantic caching, cosine threshold filtering (>= 0.90), embedding reuse, scope/version isolation, and expired Redis entry fallbacks.
 - `test_chunking.py`: Verifies character and boundary preservation for fixed, recursive, and semantic splitters.
 - `test_database_persistence.py`: Verifies relational constraints and conversation persistence.
 - `test_document_extractor.py`: Verifies extraction across `.pdf`, `.docx`, and `.txt` files.
@@ -556,7 +641,7 @@ pytest tests/ -v
 - `test_generation.py`: Verifies citation parsing, context injection, and grounding validation.
 - `test_hybrid_retrieval.py`: Verifies reciprocal rank fusion scoring ($1/(60 + \text{rank})$).
 - `test_reranking.py`: Verifies CrossEncoder model loading, pair scoring, metadata preservation, empty candidate handling, and Top-K filtering.
-- `test_rag_service.py`: Verifies end-to-end RAG query flow, reranker integration, and cache integration.
+- `test_rag_service.py`: Verifies end-to-end RAG query flow, exact and semantic cache lookups, and cache population.
 - `test_redis_integration.py`: Verifies live Redis operations, including real memory pressure eviction under LRU and LFU.
 - `test_vector_store.py`: Verifies Qdrant collection creation, payload indexing, and search.
 
@@ -602,7 +687,7 @@ The system was evaluated against a standard 25-question golden benchmark set acr
 
 ## Limitations and Future Improvements
 
-- **Dynamic Semantic Caching**: The current cache uses normalized exact SHA-256 matching. Integrating vector similarity-based cache lookups (using a lightweight Qdrant cache collection with cosine similarity thresholds $\ge 0.95$) could improve hit rates for rephrased queries.
+- **Multi-Candidate Semantic Cache Probing**: The current semantic cache retrieves the top nearest neighbor (`limit=1`). Extending this to probe multiple candidates (`limit=3` or `limit=5`) would allow checking secondary candidates if the top match's Redis key has expired or been evicted.
 - **Asynchronous Document Processing**: Processing large multi-hundred-page documents currently occurs synchronously. Offloading ingestion to a Celery or ARQ background task queue would improve client responsiveness on heavy uploads.
 - **Distributed Lock during Cache Population**: Under extreme concurrency, simultaneous misses for the same query could trigger duplicate LLM calls before the first response caches. Adding a Redis distributed lock (`redlock`) would prevent these redundant calls.
 - **Multi-Modal Document Extraction**: Expanding ingestion to parse embedded tables, charts, and diagrams using vision models or specialized layout parsers would broaden knowledge coverage.
